@@ -4,9 +4,9 @@ MML を書いたテキストファイルから、
 [Y8960 BASIC Extension](https://github.com/madscient/Y8960BasicExtension) の
 `CALL MSAVE` が書き出すのと同じシーケンスデータ（`Y8SQ`）と、`CALL EXPORT PCM`
 が書き出すのと同じ ADPCM ファイル（`Y8PC`）を作るクロスコンパイラ。
-Windows / Linux / macOS 向け。
+Windows / Linux / macOS 向けのコマンドラインツール。
 
-**開発中。** コマンドラインは動く。GUI はまだ無い。
+**開発中。**
 
 ## 使い方
 

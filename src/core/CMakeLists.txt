@@ -1,5 +1,6 @@
-# The core depends on the standard library alone, so the CLI and a GUI can each
-# be replaced without it moving.
+# The core depends on the standard library alone. The CLI is one front end; an
+# editor extension talks to that CLI from another repository, and a WebAssembly
+# build would take this library as it stands.
 add_library(y8mmlc_core STATIC
     adpcm.cpp
     compile.cpp
