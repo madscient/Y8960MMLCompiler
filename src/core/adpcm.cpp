@@ -119,7 +119,7 @@ bool readAdpcm(const SourceFile& src, AdpcmData& out, Diagnostics& diag) {
     out.dump.resize(pages * kPcmPageSize, 0);
 
     bool ok = true;
-    for (const VoiceBinding& binding : src.voices) {
+    for (const SampleBinding& binding : src.samples) {
         const JsonValue* found = nullptr;
         for (const JsonValue& entry : entries->array) {
             std::string name;

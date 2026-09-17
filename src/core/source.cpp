@@ -1,7 +1,7 @@
 #include "source.h"
 
+#include <algorithm>
 #include <cctype>
-#include <cstdio>
 #include <fstream>
 #include <sstream>
 
@@ -10,10 +10,27 @@ namespace {
 
 bool isSpace(char c) { return c == ' ' || c == '\t'; }
 
+// One line as the rest of the file sees it: the physical lines a trailing '\'
+// joined, and where each of them began.
+struct Logical {
+    std::string text;
+    std::vector<OriginMark> segments;
+
+    void locate(std::size_t offset, int& line, int& column) const {
+        line = 0;
+        column = 0;
+        for (const OriginMark& s : segments) {
+            if (s.offset > offset) break;
+            line = s.line;
+            column = s.column + static_cast<int>(offset - s.offset);
+        }
+    }
+};
+
 // Splits on whitespace. Keeps where each word started, for the diagnostics.
 struct Word {
     std::string text;
-    int column = 0;
+    std::size_t offset = 0;
 };
 
 std::vector<Word> split(const std::string& s, std::size_t from) {
@@ -24,7 +41,7 @@ std::vector<Word> split(const std::string& s, std::size_t from) {
         if (i >= s.size()) break;
         std::size_t start = i;
         while (i < s.size() && !isSpace(s[i])) ++i;
-        words.push_back({s.substr(start, i - start), static_cast<int>(start) + 1});
+        words.push_back({s.substr(start, i - start), start});
     }
     return words;
 }
@@ -76,44 +93,57 @@ bool quotedRest(const std::string& line, std::size_t from, std::string& out) {
     return true;
 }
 
-void doAssign(SourceFile& src, const std::string& line, int lineNo, Diagnostics& diag) {
+// Everything the meta command handlers need to report where they are.
+struct Context {
+    SourceFile& src;
+    const Logical& line;
+    Diagnostics& diag;
+
+    void error(std::size_t offset, const std::string& message) const {
+        int l = 0, c = 0;
+        line.locate(offset, l, c);
+        diag.error(src.path, l, c, message);
+    }
+};
+
+void doAssign(const Context& ctx) {
+    const std::string& line = ctx.line.text;
     std::vector<Word> w = split(line, 1);
     if (w.size() != 4) {
-        diag.error(src.path, lineNo, 1, "#assign takes a track name, a device and a channel");
+        ctx.error(0, "#assign takes a track name, a device and a channel");
         return;
     }
     const std::string& name = w[1].text;
     if (name.size() != 1 || name[0] < 'A' || name[0] > 'P') {
-        diag.error(src.path, lineNo, w[1].column, "'" + name + "' is not a track name (A-P)");
+        ctx.error(w[1].offset, "'" + name + "' is not a track name (A-P)");
         return;
     }
     int index = name[0] - 'A';
 
     Device dev;
     if (!parseDevice(w[2].text, dev)) {
-        diag.error(src.path, lineNo, w[2].column, "'" + w[2].text + "' is not a device");
+        ctx.error(w[2].offset, "'" + w[2].text + "' is not a device");
         return;
     }
     long channel = 0;
     if (!parseInt(w[3].text, channel) || !deviceHasChannel(dev, static_cast<int>(channel))) {
-        diag.error(src.path, lineNo, w[3].column,
-                   std::string(deviceSymbol(dev)) + " has no channel " + w[3].text);
+        ctx.error(w[3].offset, std::string(deviceSymbol(dev)) + " has no channel " + w[3].text);
         return;
     }
 
-    TrackSource& t = src.tracks[index];
+    TrackSource& t = ctx.src.tracks[index];
     if (t.assigned) {
-        diag.error(src.path, lineNo, w[1].column,
-                   "track " + name + " is already assigned (line " + std::to_string(t.assignLine) + ")");
+        ctx.error(w[1].offset, "track " + name + " is already assigned (line " +
+                                   std::to_string(t.assignLine) + ")");
         return;
     }
     for (int i = 0; i < kTrackCount; ++i) {
-        const TrackSource& other = src.tracks[i];
+        const TrackSource& other = ctx.src.tracks[i];
         if (!other.assigned || other.device != dev) continue;
         if (other.channel == channel) {
-            diag.error(src.path, lineNo, w[2].column,
-                       std::string(deviceSymbol(dev)) + " channel " + w[3].text +
-                           " is already track " + std::string(1, static_cast<char>('A' + i)));
+            ctx.error(w[2].offset, std::string(deviceSymbol(dev)) + " channel " + w[3].text +
+                                       " is already track " +
+                                       std::string(1, static_cast<char>('A' + i)));
             return;
         }
         // One block cannot run rhythm mode and channels 6-8 at the same time.
@@ -122,10 +152,10 @@ void doAssign(SourceFile& src, const std::string& line, int lineNo, Diagnostics&
         bool otherUses = other.channel >= kRhythmUsesFirst && other.channel <= kRhythmUsesLast;
         bool thisUses = channel >= kRhythmUsesFirst && channel <= kRhythmUsesLast;
         if ((otherRhythm && thisUses) || (thisRhythm && otherUses)) {
-            diag.error(src.path, lineNo, w[2].column,
-                       std::string(deviceSymbol(dev)) + " cannot use channel " + w[3].text +
-                           " and channel " + std::to_string(other.channel) +
-                           " at once: rhythm mode takes channels 6-8");
+            ctx.error(w[2].offset, std::string(deviceSymbol(dev)) + " cannot use channel " +
+                                       w[3].text + " and channel " +
+                                       std::to_string(other.channel) +
+                                       " at once: rhythm mode takes channels 6-8");
             return;
         }
     }
@@ -133,90 +163,210 @@ void doAssign(SourceFile& src, const std::string& line, int lineNo, Diagnostics&
     t.assigned = true;
     t.device = dev;
     t.channel = static_cast<int>(channel);
-    t.assignLine = lineNo;
+    t.assignLine = ctx.line.segments.front().line;
 }
 
-void doDefine(SourceFile& src, const std::string& line, int lineNo, Diagnostics& diag) {
+void doDefine(const Context& ctx) {
+    const std::string& line = ctx.line.text;
     std::vector<Word> w = split(line, 1);
     if (w.size() < 3) {
-        diag.error(src.path, lineNo, 1, "#define takes a name and a value");
+        ctx.error(0, "#define takes a name and a value");
         return;
     }
     const std::string& name = w[1].text;
     if (!isMacroName(name)) {
-        diag.error(src.path, lineNo, w[1].column,
-                   "'" + name + "' is not a name (a letter, then letters, digits and _)");
+        ctx.error(w[1].offset,
+                  "'" + name + "' is not a name (a letter, then letters, digits and _)");
         return;
     }
-    auto it = src.macros.find(name);
-    if (it != src.macros.end()) {
-        diag.error(src.path, lineNo, w[1].column,
-                   "'" + name + "' is already defined (line " + std::to_string(it->second.line) + ")");
+    auto it = ctx.src.macros.find(name);
+    if (it != ctx.src.macros.end()) {
+        ctx.error(w[1].offset,
+                  "'" + name + "' is already defined (line " + std::to_string(it->second.line) + ")");
         return;
     }
 
     Macro m;
-    m.line = lineNo;
+    m.line = ctx.line.segments.front().line;
     std::string quoted;
-    std::size_t afterName = static_cast<std::size_t>(w[1].column - 1) + name.size();
-    if (quotedRest(line, afterName, quoted)) {
+    if (quotedRest(line, w[1].offset + name.size(), quoted)) {
         m.isString = true;
         m.text = quoted;
     } else if (w.size() == 3 && parseInt(w[2].text, m.number)) {
         m.isString = false;
     } else {
-        diag.error(src.path, lineNo, w[2].column,
-                   "a #define value is a number or a \"...\" string");
+        ctx.error(w[2].offset, "a #define value is a number or a \"...\" string");
         return;
     }
-    src.macros.emplace(name, std::move(m));
+    ctx.src.macros.emplace(name, std::move(m));
 }
 
-void doPcm(SourceFile& src, const std::string& line, int lineNo, Diagnostics& diag) {
-    std::vector<Word> w = split(line, 1);
+void doPcm(const Context& ctx) {
+    std::vector<Word> w = split(ctx.line.text, 1);
     if (w.size() != 2) {
-        diag.error(src.path, lineNo, 1, "#pcm takes the path of one adpcm_packer JSON file");
+        ctx.error(0, "#pcm takes the path of one adpcm_packer JSON file");
         return;
     }
-    if (!src.pcmJson.empty()) {
-        diag.error(src.path, lineNo, 1,
-                   "#pcm is already given (line " + std::to_string(src.pcmLine) + ")");
+    if (!ctx.src.pcmJson.empty()) {
+        ctx.error(0, "#pcm is already given (line " + std::to_string(ctx.src.pcmLine) + ")");
         return;
     }
-    src.pcmJson = w[1].text;
-    src.pcmLine = lineNo;
+    ctx.src.pcmJson = w[1].text;
+    ctx.src.pcmLine = ctx.line.segments.front().line;
 }
 
-void doVoice(SourceFile& src, const std::string& line, int lineNo, Diagnostics& diag) {
-    std::vector<Word> w = split(line, 1);
+void doAdpcm(const Context& ctx) {
+    std::vector<Word> w = split(ctx.line.text, 1);
     if (w.size() != 3) {
-        diag.error(src.path, lineNo, 1, "#voice takes a voice file number and an entry name");
+        ctx.error(0, "#adpcm takes a voice file number and an entry name");
         return;
     }
     long number = 0;
     if (!parseInt(w[1].text, number) || number < 0 || number > 31) {
-        diag.error(src.path, lineNo, w[1].column, "a voice file number is 0 to 31");
+        ctx.error(w[1].offset, "a voice file number is 0 to 31");
         return;
     }
-    for (const VoiceBinding& v : src.voices) {
-        if (v.number == number) {
-            diag.error(src.path, lineNo, w[1].column,
-                       "voice file " + w[1].text + " is already bound (line " +
-                           std::to_string(v.line) + ")");
+    for (const SampleBinding& s : ctx.src.samples) {
+        if (s.number == number) {
+            ctx.error(w[1].offset, "voice file " + w[1].text + " is already bound (line " +
+                                       std::to_string(s.line) + ")");
             return;
         }
     }
-    src.voices.push_back({static_cast<int>(number), w[2].text, lineNo});
+    ctx.src.samples.push_back(
+        {static_cast<int>(number), w[2].text, ctx.line.segments.front().line});
 }
 
-void doTrackLine(SourceFile& src, const std::string& line, int lineNo) {
-    int index = line[0] - 'A';
+// The bytes of a record, written as a comma separated list. An item is a
+// "..." string, which contributes its characters, or a number: $hh is the byte
+// as it stands and a decimal one may be negative, which is the form a waveform
+// level is written in.
+bool recordBytes(const Context& ctx, std::size_t from, VoiceRecord& out) {
+    const std::string& line = ctx.line.text;
+    std::vector<std::uint8_t> bytes;
+    std::size_t i = from;
+
+    for (;;) {
+        while (i < line.size() && isSpace(line[i])) ++i;
+        if (i >= line.size()) {
+            ctx.error(i, "a value was expected after the ','");
+            return false;
+        }
+        const std::size_t itemAt = i;
+
+        if (line[i] == '"') {
+            std::size_t close = line.find('"', i + 1);
+            if (close == std::string::npos) {
+                ctx.error(i, "this string has no closing quote");
+                return false;
+            }
+            for (std::size_t j = i + 1; j < close; ++j) {
+                bytes.push_back(static_cast<std::uint8_t>(line[j]));
+            }
+            i = close + 1;
+        } else {
+            std::size_t start = i;
+            while (i < line.size() && !isSpace(line[i]) && line[i] != ',') ++i;
+            const std::string item = line.substr(start, i - start);
+            long v = 0;
+            if (item.size() > 1 && item[0] == '$') {
+                v = 0;
+                bool good = item.size() >= 2;
+                for (std::size_t j = 1; j < item.size(); ++j) {
+                    char c = static_cast<char>(std::tolower(static_cast<unsigned char>(item[j])));
+                    int d;
+                    if (c >= '0' && c <= '9') d = c - '0';
+                    else if (c >= 'a' && c <= 'f') d = c - 'a' + 10;
+                    else { good = false; break; }
+                    v = v * 16 + d;
+                }
+                if (!good || v > 255) {
+                    ctx.error(start, "'" + item + "' is not a byte written as $00 to $FF");
+                    return false;
+                }
+            } else if (!parseInt(item, v) || v < -128 || v > 255) {
+                ctx.error(start, "'" + item + "' is not a value; a byte is -128 to 255");
+                return false;
+            }
+            bytes.push_back(static_cast<std::uint8_t>(v & 0xFF));
+        }
+
+        if (bytes.size() > static_cast<std::size_t>(kVoiceRecordSize)) {
+            ctx.error(itemAt, "a record is " + std::to_string(kVoiceRecordSize) +
+                                  " bytes; this one runs past the end");
+            return false;
+        }
+
+        while (i < line.size() && isSpace(line[i])) ++i;
+        if (i >= line.size()) break;
+        if (line[i] != ',') {
+            ctx.error(i, "',' was expected between values");
+            return false;
+        }
+        ++i;
+    }
+
+    if (bytes.size() != static_cast<std::size_t>(kVoiceRecordSize)) {
+        ctx.error(from, "a record is " + std::to_string(kVoiceRecordSize) + " bytes; this is " +
+                            std::to_string(bytes.size()));
+        return false;
+    }
+    std::copy(bytes.begin(), bytes.end(), out.begin());
+    return true;
+}
+
+void doRecord(const Context& ctx, bool wave) {
+    const std::string& line = ctx.line.text;
+    const char* what = wave ? "#wave" : "#voice";
+    const int first = wave ? kUserWaveFirst : kUserVoiceFirst;
+    const int last = wave ? kUserWaveLast : kUserVoiceLast;
+
+    std::vector<Word> w = split(line, 1);
+    if (w.size() < 3) {
+        ctx.error(0, std::string(what) + " takes a number and " +
+                         std::to_string(kVoiceRecordSize) + " bytes");
+        return;
+    }
+    long number = 0;
+    if (!parseInt(w[1].text, number) || number < first || number > last) {
+        ctx.error(w[1].offset, std::string(what) + " takes a number from " +
+                                   std::to_string(first) + " to " + std::to_string(last) +
+                                   "; the ones below that are presets");
+        return;
+    }
+
+    std::map<int, RecordDef>& into = wave ? ctx.src.userWaves : ctx.src.userVoices;
+    auto it = into.find(static_cast<int>(number));
+    if (it != into.end()) {
+        ctx.error(w[1].offset, std::string(what) + " " + w[1].text + " is already defined (line " +
+                                   std::to_string(it->second.line) + ")");
+        return;
+    }
+
+    RecordDef def;
+    def.line = ctx.line.segments.front().line;
+    if (!recordBytes(ctx, w[2].offset, def.record)) return;
+    into.emplace(static_cast<int>(number), def);
+}
+
+void doTrackLine(SourceFile& src, const Logical& line) {
+    int index = line.text[0] - 'A';
     TrackSource& t = src.tracks[index];
     std::size_t i = 1;
-    while (i < line.size() && isSpace(line[i])) ++i;
+    while (i < line.text.size() && isSpace(line.text[i])) ++i;
+
     if (!t.text.empty()) t.text.push_back('\n');
-    t.marks.push_back({t.text.size(), lineNo, static_cast<int>(i) + 1});
-    t.text.append(line, i, std::string::npos);
+    const std::size_t base = t.text.size();
+
+    int l = 0, c = 0;
+    line.locate(i, l, c);
+    t.marks.push_back({base, l, c});
+    // A line continued with '\' keeps a mark per physical line, so a
+    // diagnostic in the continued part still names the line it is on.
+    for (const OriginMark& s : line.segments) {
+        if (s.offset > i) t.marks.push_back({base + (s.offset - i), s.line, s.column});
+    }
+    t.text.append(line.text, i, std::string::npos);
 }
 
 } // namespace
@@ -242,14 +392,33 @@ bool readSourceText(const std::string& path, const std::string& text, SourceFile
         pos = 3;
     }
 
-    int lineNo = 0;
+    std::vector<std::string> physical;
     while (pos <= text.size()) {
         std::size_t nl = text.find('\n', pos);
         std::string line = text.substr(pos, (nl == std::string::npos ? text.size() : nl) - pos);
         pos = (nl == std::string::npos) ? text.size() + 1 : nl + 1;
-        ++lineNo;
         if (!line.empty() && line.back() == '\r') line.pop_back();
+        physical.push_back(std::move(line));
+    }
 
+    for (std::size_t n = 0; n < physical.size();) {
+        Logical logical;
+        // A '\' at the end of a line drops the line break and joins the next.
+        // It is read before anything else looks at the line, so it works on
+        // every kind of line a comment one included.
+        for (;;) {
+            std::string part = physical[n];
+            while (!part.empty() && isSpace(part.back())) part.pop_back();
+            bool joins = !part.empty() && part.back() == '\\';
+            if (joins) part.pop_back();
+
+            logical.segments.push_back({logical.text.size(), static_cast<int>(n) + 1, 1});
+            logical.text += part;
+            ++n;
+            if (!joins || n >= physical.size()) break;
+        }
+
+        const std::string& line = logical.text;
         bool blank = true;
         for (char c : line) {
             if (!isSpace(c)) {
@@ -259,43 +428,48 @@ bool readSourceText(const std::string& path, const std::string& text, SourceFile
         }
         if (blank) continue;
 
+        const int firstLine = logical.segments.front().line;
         char head = line[0];
         if (head == ';') continue;
         if (head == '#') {
+            Context ctx{out, logical, diag};
             std::vector<Word> w = split(line, 1);
             std::string name = w.empty() ? std::string() : lower(w[0].text);
             if (name == "assign") {
-                doAssign(out, line, lineNo, diag);
+                doAssign(ctx);
             } else if (name == "define") {
-                doDefine(out, line, lineNo, diag);
+                doDefine(ctx);
             } else if (name == "pcm") {
-                doPcm(out, line, lineNo, diag);
+                doPcm(ctx);
+            } else if (name == "adpcm") {
+                doAdpcm(ctx);
             } else if (name == "voice") {
-                doVoice(out, line, lineNo, diag);
+                doRecord(ctx, false);
+            } else if (name == "wave") {
+                doRecord(ctx, true);
             } else {
-                diag.error(path, lineNo, 1, "'#" + name + "' is not a meta command");
+                diag.error(path, firstLine, 1, "'#" + name + "' is not a meta command");
             }
             continue;
         }
         if (head >= 'A' && head <= 'P') {
             if (line.size() > 1 && !isSpace(line[1])) {
-                diag.error(path, lineNo, 2, "a track name is followed by a space");
+                diag.error(path, firstLine, 2, "a track name is followed by a space");
                 continue;
             }
-            doTrackLine(out, line, lineNo);
+            doTrackLine(out, logical);
             continue;
         }
-        diag.error(path, lineNo, 1,
-                   "a line begins with a track name (A-P), '#' or ';'");
+        diag.error(path, firstLine, 1, "a line begins with a track name (A-P), '#' or ';'");
     }
 
-    // #voice needs a #pcm to name entries in.
-    if (out.pcmJson.empty() && !out.voices.empty()) {
-        diag.error(path, out.voices.front().line, 1, "#voice needs a #pcm before it");
+    // #adpcm needs a #pcm to name entries in.
+    if (out.pcmJson.empty() && !out.samples.empty()) {
+        diag.error(path, out.samples.front().line, 1, "#adpcm needs a #pcm before it");
     } else {
-        for (const VoiceBinding& v : out.voices) {
-            if (v.line < out.pcmLine) {
-                diag.error(path, v.line, 1, "#voice comes after the #pcm it names entries in");
+        for (const SampleBinding& s : out.samples) {
+            if (s.line < out.pcmLine) {
+                diag.error(path, s.line, 1, "#adpcm comes after the #pcm it names entries in");
             }
         }
     }

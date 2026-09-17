@@ -7,11 +7,13 @@
 
 #include "device.h"
 #include "diag.h"
+#include "voicedata.h"
 
 namespace y8 {
 
 // Where a stretch of the track buffer came from, so a diagnostic can point at
-// the line the author wrote rather than at an offset in a joined string.
+// the line the author wrote rather than at an offset in a joined string. A
+// line continued with '\' contributes one mark per physical line.
 struct OriginMark {
     std::size_t offset;  // into TrackSource::text
     int line;
@@ -40,9 +42,15 @@ struct Macro {
     int line = 0;
 };
 
-struct VoiceBinding {
+struct SampleBinding {
     int number = 0;
     std::string entry;
+    int line = 0;
+};
+
+// A record #voice or #wave built, and the line it was built on.
+struct RecordDef {
+    VoiceRecord record{};
     int line = 0;
 };
 
@@ -51,10 +59,20 @@ struct SourceFile {
     std::array<TrackSource, kTrackCount> tracks;
     std::map<std::string, Macro> macros;
 
+    // @128-@191 on the FM family, @16-@31 on the SCC. The presets below those
+    // come from the table the compiler carries.
+    std::map<int, RecordDef> userVoices;
+    std::map<int, RecordDef> userWaves;
+
     std::string pcmJson;  // empty when the source has no #pcm
     int pcmLine = 0;
-    std::vector<VoiceBinding> voices;
+    std::vector<SampleBinding> samples;
 };
+
+constexpr int kUserVoiceFirst = 128;
+constexpr int kUserVoiceLast = 191;
+constexpr int kUserWaveFirst = 16;
+constexpr int kUserWaveLast = 31;
 
 // Reads the file and sorts its lines. Errors go to `diag`; the parts that did
 // read are kept, so one bad line does not hide the rest.

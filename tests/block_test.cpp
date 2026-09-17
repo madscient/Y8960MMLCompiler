@@ -114,7 +114,7 @@ void pcmFile() {
     }
     writeText("y8mmlc_test.mml",
               "#pcm y8mmlc_test.json\n"
-              "#voice 3 bd\n"
+              "#adpcm 3 bd\n"
               "#assign A OPL2EX1 9\n"
               "A @3 O5 E4\n");
 
@@ -132,17 +132,21 @@ void pcmFile() {
     test::check(out.pcm.size() == 16 + 512, "the dump follows the settings");
 
     // The same seven bytes are chunk 03 of the sequence.
+    if (out.sequence.size() < 3 + 7) {
+        test::check(false, "the block is too short to hold chunk 03");
+        return;
+    }
     std::size_t at = out.sequence.size() - (3 + 7);
     test::checkBytes("chunk 03", std::vector<std::uint8_t>(
                                      out.sequence.begin() + static_cast<std::ptrdiff_t>(at),
                                      out.sequence.end()),
                      bytes({0x03, 0x07, 0x00, 0x03, 0x00, 0x00, 0x02, 0x00, 0x40, 0x1F}));
 
-    // A voice file the MML sounds and no #voice binds is a key-on with nothing
+    // A voice file the MML sounds and no #adpcm binds is a key-on with nothing
     // behind it.
     writeText("y8mmlc_test2.mml",
               "#pcm y8mmlc_test.json\n"
-              "#voice 3 bd\n"
+              "#adpcm 3 bd\n"
               "#assign A OPL2EX1 9\n"
               "A @4 O5 E4\n");
     Diagnostics unbound;
@@ -152,13 +156,13 @@ void pcmFile() {
 
     writeText("y8mmlc_test3.mml",
               "#pcm y8mmlc_test.json\n"
-              "#voice 3 nosuch\n"
+              "#adpcm 3 nosuch\n"
               "#assign A OPL2EX1 9\n"
               "A @3 O5 E4\n");
     Diagnostics missing;
     CompileResult out3;
     test::check(!compileFile("y8mmlc_test3.mml", out3, missing),
-                "a #voice naming no entry is refused");
+                "an #adpcm naming no entry is refused");
 
     std::remove("y8mmlc_test.json");
     std::remove("y8mmlc_test.bin");

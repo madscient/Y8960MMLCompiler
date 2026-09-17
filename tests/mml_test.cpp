@@ -106,8 +106,6 @@ void voices() {
                      bytes({0x82, 0x60, 0x00, 0x30, 0xFF}));
 
     test::check(refused("OPL2EX1 0", "@64C4"), "@64 names no voice");
-    test::check(refused("OPL2EX1 0", "@128C4"), "a VOICE COPY voice is not buildable yet");
-    test::check(refused("SCC 0", "@16C4"), "a WAVE COPY waveform is not buildable yet");
 }
 
 void loops() {
@@ -216,6 +214,106 @@ void macros() {
                 "a macro chain that loops is refused");
 }
 
+void records() {
+    // 32 numbers, the eight of the name included.
+    const std::string voice =
+        "#voice 128 $50,$69,$61,$6E,$6F,$20,$31,$20,"
+        "$00,$00,$0A,$00,$00,$00,$00,$00,"
+        "$31,$0E,$D9,$11,$30,$00,$00,$00,"
+        "$11,$00,$B2,$F4,$70,$00,$00,$00\n";
+    test::checkBytes("@128", track("OPL2EX1 0", "@128C4", voice),
+                     bytes({0x85, 0x00, 0x00, 0x30, 0xFF}));
+
+    // The name may be written as a string, and a waveform level may be negative.
+    const std::string wave =
+        "#wave 16 \"unused..\", \\\n"
+        "         -124,-116,-108,-100, -92, -84, -76, -68, \\\n"
+        "         -60, -52, -44, -36, -28, -20, -12,  -4, \\\n"
+        "            4,  12,  20,  28,  36,  44,  52,  60\n";
+    test::checkBytes("@16", track("SCC 0", "@16C4", wave),
+                     bytes({0x85, 0x00, 0x00, 0x30, 0xFF}));
+
+    // The record the block carries is the one that was written.
+    {
+        Diagnostics diag;
+        SourceFile src;
+        test::check(readSourceText("t.mml", voice + "#assign A OPL2EX1 0\nA @128C4\n", src, diag),
+                    "a #voice source reads");
+        Sequence seq;
+        test::check(compileSequence(src, seq, diag), "and compiles");
+        test::check(seq.voices.slots().size() == 1, "one slot is taken");
+        const VoiceRecord& r = seq.voices.slots()[0].record;
+        test::check(std::string(r.begin(), r.begin() + 8) == "Piano 1 ",
+                    "the record holds what was written");
+        test::check(r[16] == 0x31 && r[31] == 0x00, "and the rest of it too");
+    }
+
+    test::check(refused("OPL2EX1 0", "@128C4"), "@128 with no #voice is refused");
+    test::check(refused("SCC 0", "@16C4"), "@16 with no #wave is refused");
+
+    // The number is the user half only; the presets come from the carried table.
+    Diagnostics low;
+    SourceFile lowSrc;
+    readSourceText("t.mml", "#voice 63 1,2,3\n", lowSrc, low);
+    test::check(low.hasErrors(), "#voice on a preset number is refused");
+
+    Diagnostics wrongWave;
+    SourceFile waveSrc;
+    readSourceText("t.mml", "#wave 15 1,2,3\n", waveSrc, wrongWave);
+    test::check(wrongWave.hasErrors(), "#wave on a preset number is refused");
+
+    Diagnostics short_;
+    SourceFile shortSrc;
+    readSourceText("t.mml", "#voice 128 1,2,3\n", shortSrc, short_);
+    test::check(short_.hasErrors(), "a record that is not 32 bytes is refused");
+
+    Diagnostics longString;
+    SourceFile longSrc;
+    readSourceText("t.mml", "#voice 128 \"123456789\", 1\n", longSrc, longString);
+    test::check(longString.hasErrors(), "a record that runs past 32 bytes is refused");
+
+    Diagnostics twice;
+    SourceFile twiceSrc;
+    readSourceText("t.mml", voice + voice, twiceSrc, twice);
+    test::check(twice.hasErrors(), "the same number twice is refused");
+}
+
+void continuation() {
+    Diagnostics diag;
+    SourceFile src;
+    // A '\' at the end of a line drops the break and joins the next one.
+    const std::string text =
+        "#define RIFF \"cde\"\n"
+        "#assign A SSGS 0\n"
+        "A L8 XRIF\\\n"
+        "F; \\\n"
+        "  cde\n";
+    test::check(readSourceText("t.mml", text, src, diag), "a continued line reads");
+    Sequence seq;
+    test::check(compileSequence(src, seq, diag), "and compiles");
+    test::checkBytes("a joined line", seq.tracks[0].bytes,
+                     bytes({0x00, 0x18, 0x02, 0x18, 0x04, 0x18,
+                            0x00, 0x18, 0x02, 0x18, 0x04, 0x18, 0xFF}));
+
+    // The diagnostic names the physical line the error is on, not the first of
+    // the joined ones.
+    Diagnostics bad;
+    SourceFile src2;
+    readSourceText("t.mml", "#assign A SSGS 0\nA c4 \\\nd4 \\\nz4\n", src2, bad);
+    Sequence seq2;
+    compileSequence(src2, seq2, bad);
+    test::check(bad.hasErrors() && bad.all().front().line == 4,
+                "the error is reported on line 4");
+
+    // A meta command spread over lines is one command.
+    Diagnostics meta;
+    SourceFile src3;
+    test::check(readSourceText("t.mml", "#assign \\\n  A \\\n  SSGS \\\n  0\n", src3, meta),
+                "a continued meta command reads");
+    test::check(src3.tracks[0].assigned && src3.tracks[0].device == DevSSGS,
+                "and does what it says");
+}
+
 void sourceLines() {
     // The lines of one track join up, and a loop may span them.
     Diagnostics diag;
@@ -277,6 +375,8 @@ int main() {
     rhythmTrack();
     adpcmTrack();
     macros();
+    records();
+    continuation();
     sourceLines();
     outputNames();
     return test::report("mml_test");

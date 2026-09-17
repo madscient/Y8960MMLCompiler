@@ -340,8 +340,17 @@ void TrackCompiler::voiceNumber(long n) {
         if (n > kVoiceUserLast) fail("@n on an FM channel is 0 to 191");
         if (n == kOpllBanked) fail("@64 names no voice: preset 0 of every bank is the user voice");
         if (n >= kVoiceUserFirst) {
-            fail("@" + std::to_string(n) +
-                 " is a voice VOICE COPY makes, which this compiler cannot build yet");
+            auto it = src_.userVoices.find(static_cast<int>(n));
+            if (it == src_.userVoices.end()) {
+                fail("@" + std::to_string(n) + " has no #voice to define it");
+            }
+            int slot = voices_.intern(false, static_cast<int>(n), it->second.record);
+            if (slot < 0) {
+                fail("this sequence already carries " + std::to_string(kVoiceSlots) + " voices");
+            }
+            emit(OpSeqVoice, static_cast<std::uint8_t>(slot));
+            voiced_ = true;
+            return;
         }
         if (n > kOpllBanked) {
             // OPLLEX's own presets, bank and number packed into one byte. No
@@ -362,11 +371,17 @@ void TrackCompiler::voiceNumber(long n) {
     // the chip resolves by itself.
     if (n > 255) fail("@n is 0 to 255");
     if (track_.device == DevSCC && n <= kWaveUserLast) {
+        VoiceRecord record;
         if (n >= kWaveUserFirst) {
-            fail("@" + std::to_string(n) +
-                 " is a waveform WAVE COPY makes, which this compiler cannot build yet");
+            auto it = src_.userWaves.find(static_cast<int>(n));
+            if (it == src_.userWaves.end()) {
+                fail("@" + std::to_string(n) + " has no #wave to define it");
+            }
+            record = it->second.record;
+        } else {
+            record = presetWave(static_cast<int>(n));
         }
-        int slot = voices_.intern(true, static_cast<int>(n), presetWave(static_cast<int>(n)));
+        int slot = voices_.intern(true, static_cast<int>(n), record);
         if (slot < 0) fail("this sequence already carries " + std::to_string(kVoiceSlots) + " voices");
         emit(OpSeqVoice, static_cast<std::uint8_t>(slot));
     } else {

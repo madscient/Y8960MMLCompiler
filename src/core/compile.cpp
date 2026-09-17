@@ -34,7 +34,7 @@ bool build(SourceFile& src, CompileResult& out, Diagnostics& diag) {
             if (!bound) {
                 diag.error(src.path, src.pcmLine, 1,
                            "voice file " + std::to_string(number) +
-                               " is sounded but no #voice binds it");
+                               " is sounded but no #adpcm binds it");
                 adpcmOk = false;
             }
         }

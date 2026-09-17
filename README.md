@@ -44,17 +44,27 @@ C  V10 @A14 |: B8 H8 S!8 H8 :|2
 ```
 
 - 行の先頭が `#` ならメタコマンド、`A`-`P` ＋空白ならそのトラックの MML、
-  `;` ならコメント
+  `;` ならコメント。行末が `\` なら次の行がそこに続く
 - MML のコマンドは Y8960 BASIC Extension と同じ
 - 書き方の詳細は [`doc/mml-source.md`](doc/mml-source.md)
 
 ADPCM を鳴らすには、[adpcm_packer](https://github.com/madscient/adpcm_packer) が
-`adpcm-b` で出した `.json` と `.bin` を `#pcm` で読み、`#voice` で番号を付ける。
+`adpcm-b` で出した `.json` と `.bin` を `#pcm` で読み、`#adpcm` で番号を付ける。
 
 ```
 #pcm   drums.json
-#voice 0 bassdrum
-#voice 1 snare
+#adpcm 0 bassdrum
+#adpcm 1 snare
+```
+
+`@128`-`@191` の FM 音色と `@16`-`@31` の SCC 波形は `#voice` と `#wave` で
+作る。長い行は末尾の `\` で折り返せる。
+
+```
+#voice 128 "Piano 1 ", \
+           $00,$00,$0A,$00,$00,$00,$00,$00, \
+           $31,$0E,$D9,$11,$30,$00,$00,$00, \
+           $11,$00,$B2,$F4,$70,$00,$00,$00
 ```
 
 ## ビルド
