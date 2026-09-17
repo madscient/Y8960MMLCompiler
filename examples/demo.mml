@@ -1,0 +1,14 @@
+; Y8960 MML - a short demo
+;
+; Three parts: an FM lead, an SCC bass and a rhythm track.
+
+#assign A OPL2EX1 0
+#assign B SCC 0
+#assign C OPL2EX1 10
+
+#define TEMPO 132
+#define RIFF  "cdefgab>c<"
+
+A  T=TEMPO; @6 V13 Q7 O4 L8 |: XRIFF; [1 >c4.< ] [2 >e4.< ] :|2
+B  @1 V12 O2 L4 |: c g c g :|2
+C  V10 @A14 |: B8 H8 S!8 H8 :|2
