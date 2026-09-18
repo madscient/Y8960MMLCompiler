@@ -171,7 +171,7 @@
       "root_note": "A3"
     },
     {
-      "path": "wavs/_fixed_source/PSS-590_OrchestraHit.wav",
+      "path": "wavs/melodic/PSS-590_OrchestraHit.wav",
       "name": "PSS_590_OrchestraHit",
       "root_note": "A3"
     },
@@ -181,7 +181,7 @@
       "root_note": "A3"
     },
     {
-      "path": "wavs/_fixed_source/PSS-590_Timpani.wav",
+      "path": "wavs/melodic/PSS-590_Timpani.wav",
       "name": "PSS_590_Timpani",
       "root_note": "A3"
     }

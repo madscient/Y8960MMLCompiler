@@ -411,8 +411,10 @@ MIDI ならコントローラの最終値を送り直せば復元できるが、
   `../FITOM_staging/banks/PCM/common/_fixed_source/` にあった
 - その2本を使うと、boundary 32 のまま**元の `.bin`（95360 バイト）がバイト単位で、
   `.json` も完全に一致した**。パラメータとソースの組が正しいことの証拠になる
-- 2本を `presets/wavs/_fixed_source/` に写し、パラメータのパスをそこへ向けた。
-  出力先も `presets/` の中の同じ名前に向けた。**`presets/` をカレントにして
+- **利用者が `presets/wavs/melodic/` の2本を 16bit 版に置き換えた**（2026-09-19）。
+  `_fixed_source` の2本と SHA-1 まで同じであることを確かめ、パラメータのパスを
+  `wavs/melodic/` に戻した。作り直したバンクはコミット済みのものと同一だった。
+  出力先は `presets/` の中の同じ名前に向けてある。**`presets/` をカレントにして
   `adpcm_packer params_y8950_adpcmb_excerpt.json` を走らせると、コミットした
   バンクがそのまま出る**。ただし `wavs/` はリポジトリに入らないので、
   **作り直せるのは録音の元ファイルを持っている利用者の手元だけ**
