@@ -195,7 +195,8 @@ void adpcmTrack() {
     // @n is a voice file number the chip resolves; no record stands behind it.
     test::checkBytes("ADPCM", track("OPL2EX1 9", "@2O5E4"),
                      bytes({0x82, 0x02, 0x80, 0x05, 0x04, 0x30, 0xFF}));
-    test::check(refused("OPL2EX1 9", "@32C4"), "a voice file number over 31 is refused");
+    test::check(!refused("OPL2EX1 9", "@63C4"), "63 is the last voice file number");
+    test::check(refused("OPL2EX1 9", "@64C4"), "a voice file number over 63 is refused");
 }
 
 void macros() {

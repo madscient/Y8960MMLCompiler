@@ -1,5 +1,7 @@
 #include "source.h"
 
+#include "adpcm.h"
+
 #include <algorithm>
 #include <cctype>
 #include <fstream>
@@ -223,8 +225,9 @@ void doAdpcm(const Context& ctx) {
         return;
     }
     long number = 0;
-    if (!parseInt(w[1].text, number) || number < 0 || number > 31) {
-        ctx.error(w[1].offset, "a voice file number is 0 to 31");
+    if (!parseInt(w[1].text, number) || number < 0 || number >= kPcmVoiceMax) {
+        ctx.error(w[1].offset,
+                  "a voice file number is 0 to " + std::to_string(kPcmVoiceMax - 1));
         return;
     }
     for (const SampleBinding& s : ctx.src.samples) {

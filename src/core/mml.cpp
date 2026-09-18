@@ -3,6 +3,7 @@
 #include <cctype>
 #include <string>
 
+#include "adpcm.h"
 #include "opcodes.h"
 
 namespace y8 {
@@ -329,7 +330,9 @@ void TrackCompiler::patch(std::size_t field, std::size_t target) {
 
 void TrackCompiler::voiceNumber(long n) {
     if (dialect_ == Dialect::Adpcm) {
-        if (n > 31) fail("a voice file number is 0 to 31");
+        if (n >= kPcmVoiceMax) {
+            fail("a voice file number is 0 to " + std::to_string(kPcmVoiceMax - 1));
+        }
         adpcmFiles_->insert(static_cast<int>(n));
         emit(OpVoice, static_cast<std::uint8_t>(n));
         voiced_ = true;

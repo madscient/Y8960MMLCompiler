@@ -11,14 +11,14 @@ namespace y8 {
 
 constexpr int kPcmPageSize = 256;
 constexpr int kPcmPagesMax = 1024;  // the 256KB sample memory
-constexpr int kPcmVoiceMax = 32;
+constexpr int kPcmVoiceMax = 64;
 constexpr int kPcmRateMin = 1800;
 constexpr int kPcmRateMax = 16000;
 
 // One voice file: where it sits in the sample memory and how fast it plays.
 // The same seven bytes are chunk 03 of a sequence and one setting of a Y8PC.
 struct VoiceFile {
-    int number = 0;      // 0-31
+    int number = 0;      // 0-63
     int startPage = 0;
     int pageCount = 0;
     int sampleRate = 0;  // Hz
