@@ -17,7 +17,7 @@ y8mmlc <MML ソース> [-o <基底名>] [--out-dir <フォルダ>]
 ```sh
 y8mmlc song.mml
 #  -> SONG.SQ   シーケンスデータ
-#  -> SONG.PC   ADPCM のサンプルと設定（ソースに #pcm があるときだけ）
+#  -> SONG.PC   ADPCM のサンプルと設定（ソースに #pcmbank があるときだけ）
 ```
 
 出力の名前は MSX-DOS の 8.3 に収まるように付く。`-o` で変えられる。
@@ -49,12 +49,18 @@ C  V10 @A14 |: B8 H8 S!8 H8 :|2
 - 書き方の詳細は [`doc/mml-source.md`](doc/mml-source.md)
 
 ADPCM を鳴らすには、[adpcm_packer](https://github.com/madscient/adpcm_packer) が
-`adpcm-b` で出した `.json` と `.bin` を `#pcm` で読み、`#adpcm` で番号を付ける。
+`adpcm-b` で出した `.json` と `.bin` を `#pcmbank` で読む。**バンクは自分で
+番号を付ける**ので、エントリの並び順がそのまま `@0` `@1` … になる。
 
 ```
-#pcm   drums.json
-#adpcm 0 bassdrum
-#adpcm 1 snare
+#pcmbank drums.json
+```
+
+番号を名前で固定したいときだけ `#adpcm` を足す。
+
+```
+#pcmbank drums.json
+#adpcm   10 bassdrum
 ```
 
 `@128`-`@191` の FM 音色と `@16`-`@31` の SCC 波形は `#voice` と `#wave` で

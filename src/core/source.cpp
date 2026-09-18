@@ -201,18 +201,19 @@ void doDefine(const Context& ctx) {
     ctx.src.macros.emplace(name, std::move(m));
 }
 
-void doPcm(const Context& ctx) {
+void doPcmBank(const Context& ctx) {
     std::vector<Word> w = split(ctx.line.text, 1);
     if (w.size() != 2) {
-        ctx.error(0, "#pcm takes the path of one adpcm_packer JSON file");
+        ctx.error(0, "#pcmbank takes the path of one adpcm_packer JSON file");
         return;
     }
-    if (!ctx.src.pcmJson.empty()) {
-        ctx.error(0, "#pcm is already given (line " + std::to_string(ctx.src.pcmLine) + ")");
+    if (!ctx.src.pcmBankJson.empty()) {
+        ctx.error(0,
+                  "#pcmbank is already given (line " + std::to_string(ctx.src.pcmBankLine) + ")");
         return;
     }
-    ctx.src.pcmJson = w[1].text;
-    ctx.src.pcmLine = ctx.line.segments.front().line;
+    ctx.src.pcmBankJson = w[1].text;
+    ctx.src.pcmBankLine = ctx.line.segments.front().line;
 }
 
 void doAdpcm(const Context& ctx) {
@@ -439,8 +440,8 @@ bool readSourceText(const std::string& path, const std::string& text, SourceFile
                 doAssign(ctx);
             } else if (name == "define") {
                 doDefine(ctx);
-            } else if (name == "pcm") {
-                doPcm(ctx);
+            } else if (name == "pcmbank") {
+                doPcmBank(ctx);
             } else if (name == "adpcm") {
                 doAdpcm(ctx);
             } else if (name == "voice") {
@@ -463,13 +464,14 @@ bool readSourceText(const std::string& path, const std::string& text, SourceFile
         diag.error(path, firstLine, 1, "a line begins with a track name (A-P), '#' or ';'");
     }
 
-    // #adpcm needs a #pcm to name entries in.
-    if (out.pcmJson.empty() && !out.samples.empty()) {
-        diag.error(path, out.samples.front().line, 1, "#adpcm needs a #pcm before it");
+    // #adpcm needs a #pcmbank to name entries in.
+    if (out.pcmBankJson.empty() && !out.samples.empty()) {
+        diag.error(path, out.samples.front().line, 1, "#adpcm needs a #pcmbank before it");
     } else {
         for (const SampleBinding& s : out.samples) {
-            if (s.line < out.pcmLine) {
-                diag.error(path, s.line, 1, "#adpcm comes after the #pcm it names entries in");
+            if (s.line < out.pcmBankLine) {
+                diag.error(path, s.line, 1,
+                           "#adpcm comes after the #pcmbank it names entries in");
             }
         }
     }

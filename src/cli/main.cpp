@@ -19,7 +19,7 @@ void usage() {
                  "  -h, --help         this text\n"
                  "\n"
                  "It writes <NAME>.SQ, the sequence, and <NAME>.PC, the ADPCM samples,\n"
-                 "the second only when the source has a #pcm.\n";
+                 "the second only when the source has a #pcmbank.\n";
 }
 
 bool writeFile(const std::string& path, const std::vector<std::uint8_t>& data) {

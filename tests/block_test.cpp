@@ -33,7 +33,7 @@ void blockShape() {
                             0x00, 0x06, 0x00,              // a track chunk, six bytes
                             0x00, 0x00, 0x00,              // track 0, SSGS, channel 0
                             0x00, 0x30, 0xFF}));
-    test::check(!out.hasPcm, "no #pcm means no Y8PC");
+    test::check(!out.hasPcm, "no #pcmbank means no Y8PC");
 }
 
 void emptyTrackIsWritten() {
@@ -112,8 +112,21 @@ void pcmFile() {
         std::string zeros(512, '\0');
         bin.write(zeros.data(), 512);
     }
+    // The bank on its own gives entry 0 the number 0; #adpcm moves it to 3.
+    writeText("y8mmlc_test0.mml",
+              "#pcmbank y8mmlc_test.json\n"
+              "#assign A OPL2EX1 9\n"
+              "A @0 O5 E4\n");
+    Diagnostics bare;
+    CompileResult bareOut;
+    test::check(compileFile("y8mmlc_test0.mml", bareOut, bare),
+                "a bank with no #adpcm is enough to sound");
+    test::checkBytes("the Y8PC of a bank that numbers itself", head(bareOut.pcm, 16),
+                     bytes({0x59, 0x38, 0x50, 0x43, 0x01, 0x03, 0x01, 0x02, 0x00,
+                            0x00, 0x00, 0x00, 0x02, 0x00, 0x40, 0x1F}));
+
     writeText("y8mmlc_test.mml",
-              "#pcm y8mmlc_test.json\n"
+              "#pcmbank y8mmlc_test.json\n"
               "#adpcm 3 bd\n"
               "#assign A OPL2EX1 9\n"
               "A @3 O5 E4\n");
@@ -123,13 +136,15 @@ void pcmFile() {
     bool ok = compileFile("y8mmlc_test.mml", out, diag);
     for (const Diagnostic& d : diag.all()) std::cerr << "  " << d.format() << "\n";
     test::check(ok, "an ADPCM track compiles");
-    test::check(out.hasPcm, "#pcm gives a Y8PC");
+    test::check(out.hasPcm, "#pcmbank gives a Y8PC");
 
-    // "Y8PC", version 1, both halves present, one setting, two pages.
-    test::checkBytes("the Y8PC header and setting", head(out.pcm, 16),
-                     bytes({0x59, 0x38, 0x50, 0x43, 0x01, 0x03, 0x01, 0x02, 0x00,
+    // "Y8PC", version 1, both halves present, two settings, two pages. The bank
+    // gave the entry number 0 and #adpcm put the same one at 3 as well.
+    test::checkBytes("the Y8PC header and settings", head(out.pcm, 23),
+                     bytes({0x59, 0x38, 0x50, 0x43, 0x01, 0x03, 0x02, 0x02, 0x00,
+                            0x00, 0x00, 0x00, 0x02, 0x00, 0x40, 0x1F,
                             0x03, 0x00, 0x00, 0x02, 0x00, 0x40, 0x1F}));
-    test::check(out.pcm.size() == 16 + 512, "the dump follows the settings");
+    test::check(out.pcm.size() == 23 + 512, "the dump follows the settings");
 
     // The same seven bytes are chunk 03 of the sequence.
     if (out.sequence.size() < 3 + 7) {
@@ -145,17 +160,17 @@ void pcmFile() {
     // A voice file the MML sounds and no #adpcm binds is a key-on with nothing
     // behind it.
     writeText("y8mmlc_test2.mml",
-              "#pcm y8mmlc_test.json\n"
+              "#pcmbank y8mmlc_test.json\n"
               "#adpcm 3 bd\n"
               "#assign A OPL2EX1 9\n"
               "A @4 O5 E4\n");
     Diagnostics unbound;
     CompileResult out2;
     test::check(!compileFile("y8mmlc_test2.mml", out2, unbound),
-                "an unbound voice file is refused");
+                "a voice file the bank has no entry for is refused");
 
     writeText("y8mmlc_test3.mml",
-              "#pcm y8mmlc_test.json\n"
+              "#pcmbank y8mmlc_test.json\n"
               "#adpcm 3 nosuch\n"
               "#assign A OPL2EX1 9\n"
               "A @3 O5 E4\n");
@@ -164,6 +179,7 @@ void pcmFile() {
     test::check(!compileFile("y8mmlc_test3.mml", out3, missing),
                 "an #adpcm naming no entry is refused");
 
+    std::remove("y8mmlc_test0.mml");
     std::remove("y8mmlc_test.json");
     std::remove("y8mmlc_test.bin");
     std::remove("y8mmlc_test.mml");

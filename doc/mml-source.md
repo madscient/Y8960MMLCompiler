@@ -173,46 +173,57 @@ A  T=TEMPO; L8 XRIFF; XRIFF;
            68,  76,  84,  92, 100, 108, 116, 124
 ```
 
-### `#pcm` ―― ADPCM のサンプルを読む
+### `#pcmbank` ―― ADPCM のサンプルを読む
 
 ```
-#pcm <JSON のパス>
+#pcmbank <JSON のパス>
 ```
 
 [adpcm_packer](https://github.com/madscient/adpcm_packer) が出した JSON を
 指す。**同じ茎の `.bin`**（ダンプ）が同じフォルダにあることが要る。
 
 ```
-#pcm drums.json          ; drums.json と drums.bin を読む
+#pcmbank drums.json      ; drums.json と drums.bin を読む
+```
+
+**バンクは自分で番号を付ける。** 並んでいるエントリが先頭から
+ボイスファイル番号 0, 1, 2 … を取るので、**これだけで `@`*n* が鳴らせる。**
+
+```
+#pcmbank drums.json      ; entries が bassdrum, snare, hihat の順なら
+#assign  D OPL2EX1 9
+D  L8 @0 c @1 c @2 c     ; そのまま 0, 1, 2 で鳴る
 ```
 
 - パスは**この MML ソースからの相対**。絶対パスも書ける
 - **1つのソースに1回だけ**
+- 番号が付くのは**先頭の 32 個**まで。それより後ろのエントリは `#adpcm` で
+  番号を付けないと鳴らせない
 - JSON の `codec` は `adpcm-b`、`boundary` は `256` でなければエラー。
   Y8960 の ADPCM が読むのはこの形だけ
 - サンプリング周波数は JSON の `sample_rate`。**1800-16000Hz の外はエラー**
 
-### `#adpcm` ―― サンプルにボイスファイル番号を付ける
+### `#adpcm` ―― 番号を名前で指定する
 
 ```
 #adpcm <番号 0-31> <エントリ名>
 ```
 
-MML の `@`*n* が選ぶ番号と、JSON の `entries[].name` を結び付ける。
+`#pcmbank` が付けた番号のほかに、**名前で指したエントリをその番号にも置く。**
+バンクにサンプルを足しても番号が動いてほしくないときに書く。
 
 ```
-#pcm    drums.json
-#adpcm  0 bassdrum
-#adpcm  1 snare
+#pcmbank drums.json
+#adpcm   10 bassdrum
+#adpcm   11 snare
 
 #assign D OPL2EX1 9
-D  L8 @0 c @1 c @0 c @1 c
+D  L8 @10 c @11 c @10 c @11 c
 ```
 
-- `#pcm` より後に書く
+- `#pcmbank` より後に書く
+- **既定の番号は消えない。** 上の例では bassdrum が 0 番でも 10 番でも鳴る
 - **同じ番号を2度書くとエラー。** JSON に無い名前もエラー
-- 結び付けなかったエントリも、ダンプにはそのまま入る。番号が付いていないので
-  MML からは鳴らせない
 
 ## 出力
 
@@ -229,7 +240,7 @@ y8mmlc song.mml
   超える茎は切り詰められる**（そのとき警告が出る）
 - `-o <基底名>` で別の名前にできる
 - `--out-dir <フォルダ>` で別の場所に置ける
-- **`SONG.PC` は `#pcm` を書いたソースにだけ出る**
+- **`SONG.PC` は `#pcmbank` を書いたソースにだけ出る**
 
 `.SQ` は Y8960 BASIC Extension の `CALL MLOAD` が読む形、`.PC` は
 `CALL IMPORT PCM` が読む形。どちらも Y8960Sequencer がそのまま鳴らせる。

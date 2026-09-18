@@ -64,8 +64,8 @@ struct SourceFile {
     std::map<int, RecordDef> userVoices;
     std::map<int, RecordDef> userWaves;
 
-    std::string pcmJson;  // empty when the source has no #pcm
-    int pcmLine = 0;
+    std::string pcmBankJson;  // empty when the source has no #pcmbank
+    int pcmBankLine = 0;
     std::vector<SampleBinding> samples;
 };
 

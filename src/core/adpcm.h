@@ -29,8 +29,10 @@ struct AdpcmData {
     std::vector<std::uint8_t> dump;    // the sample memory from page 0
 };
 
-// Reads the adpcm_packer JSON `src.pcmJson` names, the .bin beside it, and the
-// #voice bindings. Paths are taken relative to the MML source.
+// Reads the adpcm_packer JSON `src.pcmBankJson` names and the .bin beside it.
+// The entries take voice file numbers 0 upwards in the order they are packed;
+// an #adpcm binding overrides one of those numbers. Paths are taken relative to
+// the MML source.
 bool readAdpcm(const SourceFile& src, AdpcmData& out, Diagnostics& diag);
 
 } // namespace y8
