@@ -1,0 +1,189 @@
+{
+  "codec": "adpcm-b",
+  "sample_rate": 16000,
+  "boundary": 256,
+  "output_bin": "wavs_y8950_adpcmb_excerpt.bin",
+  "output_json": "wavs_y8950_adpcmb_excerpt.json",
+  "wav_files": [
+    {
+      "path": "wavs/rhythm/PSS-680/bass.wav",
+      "name": "PSS_680_bass",
+      "root_note": "none"
+    },
+    {
+      "path": "wavs/rhythm/PSS-680/brush.wav",
+      "name": "PSS_680_brush",
+      "root_note": "none"
+    },
+    {
+      "path": "wavs/rhythm/PSS-680/brush_hit.wav",
+      "name": "PSS_680_brush_hit",
+      "root_note": "none"
+    },
+    {
+      "path": "wavs/rhythm/PSS-680/cavasa.wav",
+      "name": "PSS_680_cavasa",
+      "root_note": "none"
+    },
+    {
+      "path": "wavs/rhythm/PSS-680/closehh.wav",
+      "name": "PSS_680_closehh",
+      "root_note": "none"
+    },
+    {
+      "path": "wavs/rhythm/PSS-680/cowbell.wav",
+      "name": "PSS_680_cowbell",
+      "root_note": "none"
+    },
+    {
+      "path": "wavs/rhythm/PSS-680/crash.wav",
+      "name": "PSS_680_crash",
+      "root_note": "none"
+    },
+    {
+      "path": "wavs/rhythm/PSS-680/handclap.wav",
+      "name": "PSS_680_handclap",
+      "root_note": "none"
+    },
+    {
+      "path": "wavs/rhythm/PSS-680/hiagogo.wav",
+      "name": "PSS_680_hiagogo",
+      "root_note": "none"
+    },
+    {
+      "path": "wavs/rhythm/PSS-680/hibongo.wav",
+      "name": "PSS_680_hibongo",
+      "root_note": "none"
+    },
+    {
+      "path": "wavs/rhythm/PSS-680/hiconga.wav",
+      "name": "PSS_680_hiconga",
+      "root_note": "none"
+    },
+    {
+      "path": "wavs/rhythm/PSS-680/hicuica.wav",
+      "name": "PSS_680_hicuica",
+      "root_note": "none"
+    },
+    {
+      "path": "wavs/rhythm/PSS-680/hitimbaless.wav",
+      "name": "PSS_680_hitimbaless",
+      "root_note": "none"
+    },
+    {
+      "path": "wavs/rhythm/PSS-680/hitom.wav",
+      "name": "PSS_680_hitom",
+      "root_note": "none"
+    },
+    {
+      "path": "wavs/rhythm/PSS-680/hitom2.wav",
+      "name": "PSS_680_hitom2",
+      "root_note": "none"
+    },
+    {
+      "path": "wavs/rhythm/PSS-680/loagogo.wav",
+      "name": "PSS_680_loagogo",
+      "root_note": "none"
+    },
+    {
+      "path": "wavs/rhythm/PSS-680/lobongo.wav",
+      "name": "PSS_680_lobongo",
+      "root_note": "none"
+    },
+    {
+      "path": "wavs/rhythm/PSS-680/loconga.wav",
+      "name": "PSS_680_loconga",
+      "root_note": "none"
+    },
+    {
+      "path": "wavs/rhythm/PSS-680/locuica.wav",
+      "name": "PSS_680_locuica",
+      "root_note": "none"
+    },
+    {
+      "path": "wavs/rhythm/PSS-680/lotimbaless.wav",
+      "name": "PSS_680_lotimbaless",
+      "root_note": "none"
+    },
+    {
+      "path": "wavs/rhythm/PSS-680/lotom.wav",
+      "name": "PSS_680_lotom",
+      "root_note": "none"
+    },
+    {
+      "path": "wavs/rhythm/PSS-680/lotom2.wav",
+      "name": "PSS_680_lotom2",
+      "root_note": "none"
+    },
+    {
+      "path": "wavs/rhythm/PSS-680/midtom.wav",
+      "name": "PSS_680_midtom",
+      "root_note": "none"
+    },
+    {
+      "path": "wavs/rhythm/PSS-680/midtom2.wav",
+      "name": "PSS_680_midtom2",
+      "root_note": "none"
+    },
+    {
+      "path": "wavs/rhythm/PSS-680/mutetambarine.wav",
+      "name": "PSS_680_mutetambarine",
+      "root_note": "none"
+    },
+    {
+      "path": "wavs/rhythm/PSS-680/openhh.wav",
+      "name": "PSS_680_openhh",
+      "root_note": "none"
+    },
+    {
+      "path": "wavs/rhythm/PSS-680/ride.wav",
+      "name": "PSS_680_ride",
+      "root_note": "none"
+    },
+    {
+      "path": "wavs/rhythm/PSS-680/rimshot.wav",
+      "name": "PSS_680_rimshot",
+      "root_note": "none"
+    },
+    {
+      "path": "wavs/rhythm/PSS-680/snare.wav",
+      "name": "PSS_680_snare",
+      "root_note": "none"
+    },
+    {
+      "path": "wavs/rhythm/PSS-680/snare2.wav",
+      "name": "PSS_680_snare2",
+      "root_note": "none"
+    },
+    {
+      "path": "wavs/rhythm/PSS-680/splash.wav",
+      "name": "PSS_680_splash",
+      "root_note": "none"
+    },
+    {
+      "path": "wavs/rhythm/PSS-680/whistle.wav",
+      "name": "PSS_680_whistle",
+      "root_note": "none"
+    },
+    {
+      "path": "wavs/melodic/PSR-38_ORCHESTRA_HIT.wav",
+      "name": "PSR_38_ORCHESTRA_HIT",
+      "root_note": "A3"
+    },
+    {
+      "path": "wavs/_fixed_source/PSS-590_OrchestraHit.wav",
+      "name": "PSS_590_OrchestraHit",
+      "root_note": "A3"
+    },
+    {
+      "path": "wavs/melodic/PSR-38_TIMPANI.wav",
+      "name": "PSR_38_TIMPANI",
+      "root_note": "A3"
+    },
+    {
+      "path": "wavs/_fixed_source/PSS-590_Timpani.wav",
+      "name": "PSS_590_Timpani",
+      "root_note": "A3"
+    }
+  ]
+}

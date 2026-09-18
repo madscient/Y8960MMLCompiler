@@ -5,3 +5,4 @@ out/
 *.user
 examples/*.SQ
 examples/*.PC
+wavs/
