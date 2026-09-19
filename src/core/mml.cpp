@@ -898,7 +898,9 @@ void TrackCompiler::cmdParen() {
         long n = optNum(0);
         if (n >= kSegnoMax) fail("a segno number is 0 to " + std::to_string(kSegnoMax - 1));
         accent_ = -1;
-        // A segno writes nothing: it is a place, and only a (DS) wants it.
+        // A mark nothing plays. A (DS) lands just past it, and the last one of
+        // its number before the (DS) is the one it lands on.
+        emit(OpSegno, static_cast<std::uint8_t>(n));
         segno_[n] = bytes_.size();
         segnoSeen_[n] = true;
         return;

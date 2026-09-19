@@ -75,6 +75,13 @@ void notesAndLengths() {
     // Space falls anywhere, including inside a number.
     test::checkBytes("spaces", track("SSGS 0", "L 1 6 C"), bytes({0x00, 0x0C, 0xFF}));
 
+    // ROM: an N takes a length only through a name, since all its digits are the
+    // note number. Zero lengths need time between them here too.
+    test::checkBytes("N60=Z;R4N62=Z;", track("SSGS 0", "N60=Z;R4N62=Z;", "#define Z 0\n"),
+                     bytes({0xC0, 0x3C, 0x00, 0x0C, 0x30, 0xC0, 0x3E, 0x00, 0xFF}));
+    test::check(refused("SSGS 0", "C0N62"), "a note number straight after a zero length note");
+    test::check(track("SSGS 0", "N60=Z;N62=Z;", "#define Z 0\n").empty(),
+                "two zero length note numbers with no time between are refused");
     test::check(refused("SSGS 0", "C0D0"), "two key-ons with no time between are refused");
     test::check(!refused("SSGS 0", "C0@W8D0"), "a wait between them is enough");
     test::check(refused("SSGS 0", "{CDE}33"), "a tuplet dividing below two ticks is refused");
@@ -177,9 +184,18 @@ void loops() {
 }
 
 void marks() {
-    // A segno writes nothing; the dal segno carries the way back to it.
+    // A segno is a mark, 86 and its number, that nothing plays. The dal segno
+    // carries the way back to just past it.
     test::checkBytes("segno", track("SSGS 0", "L8(*)C(DS)"),
-                     bytes({0x00, 0x18, 0xD5, 0xFB, 0xFF, 0xFF}));
+                     bytes({0x86, 0x00, 0x00, 0x18, 0xD5, 0xFB, 0xFF, 0xFF}));
+    // Of two segnos with the number, the dal segno takes the last before it.
+    test::checkBytes("the last segno", track("SSGS 0", "L8(*)C(*)D(DS)"),
+                     bytes({0x86, 0x00, 0x00, 0x18, 0x86, 0x00, 0x02, 0x18,
+                            0xD5, 0xFB, 0xFF, 0xFF}));
+    // The number picks which one.
+    test::checkBytes("segno by number", track("SSGS 0", "(*)1C(*)2D(DS)1"),
+                     bytes({0x86, 0x01, 0x00, 0x30, 0x86, 0x02, 0x02, 0x30,
+                            0xD5, 0xF7, 0xFF, 0xFF}));
     // A dal segno with no segno behind it is a distance of zero, which is ignored.
     test::checkBytes("dal segno with no segno", track("SSGS 0", "(DS)1"),
                      bytes({0xD5, 0x00, 0x00, 0xFF}));

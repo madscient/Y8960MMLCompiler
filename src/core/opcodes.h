@@ -24,6 +24,7 @@ enum Op : std::uint8_t {
     OpQuantize = 0x83,
     OpTempo = 0x84,
     OpSeqVoice = 0x85,  // the slot in this sequence's own voice set
+    OpSegno = 0x86,     // a mark with its number; nothing plays it
     OpNoteAbs = 0xC0,   // note number, then a length
     OpBend = 0xD0,
     OpBendRel = 0xD1,
