@@ -22,8 +22,9 @@ bool compileFile(const std::string& path, CompileResult& out, Diagnostics& diag)
 bool compileText(const std::string& path, const std::string& text, CompileResult& out,
                  Diagnostics& diag);
 
-// The MSX-DOS base name an output takes: upper case, at most eight characters.
-// `truncated` says whether anything was cut off.
-std::string outputBaseName(const std::string& inputPath, bool& truncated);
+// The MSX-DOS base name an output takes: ASCII, upper case, at most eight
+// characters. `truncated` says whether anything was cut off, `replaced` whether
+// a character that is not ASCII had to become '_'.
+std::string outputBaseName(const std::string& inputPath, bool& truncated, bool& replaced);
 
 } // namespace y8

@@ -71,20 +71,36 @@ bool compileFile(const std::string& path, CompileResult& out, Diagnostics& diag)
     return build(src, out, diag);
 }
 
-std::string outputBaseName(const std::string& inputPath, bool& truncated) {
+std::string outputBaseName(const std::string& inputPath, bool& truncated, bool& replaced) {
     std::size_t slash = inputPath.find_last_of("/\\");
     std::string stem = (slash == std::string::npos) ? inputPath : inputPath.substr(slash + 1);
     std::size_t dot = stem.find_last_of('.');
     if (dot != std::string::npos && dot != 0) stem = stem.substr(0, dot);
 
+    // The path is UTF-8, and a character that is not ASCII becomes one '_'
+    // however many bytes it takes. A byte that does not begin a well formed
+    // sequence counts as a character of its own.
     std::string name;
-    for (char c : stem) {
-        unsigned char u = static_cast<unsigned char>(c);
-        if (std::isalnum(u)) {
-            name.push_back(static_cast<char>(std::toupper(u)));
-        } else {
-            name.push_back('_');
+    replaced = false;
+    for (std::size_t i = 0; i < stem.size();) {
+        unsigned char u = static_cast<unsigned char>(stem[i]);
+        if (u < 0x80) {
+            name.push_back(std::isalnum(u) ? static_cast<char>(std::toupper(u)) : '_');
+            ++i;
+            continue;
         }
+        std::size_t len = (u >= 0xF0 && u <= 0xF4) ? 4 : (u >= 0xE0) ? 3 : (u >= 0xC2) ? 2 : 1;
+        if (u > 0xF4) len = 1;
+        for (std::size_t k = 1; k < len; ++k) {
+            unsigned char c = (i + k < stem.size()) ? static_cast<unsigned char>(stem[i + k]) : 0;
+            if ((c & 0xC0) != 0x80) {
+                len = 1;
+                break;
+            }
+        }
+        name.push_back('_');
+        replaced = true;
+        i += len;
     }
     if (name.empty()) name = "OUTPUT";
     truncated = name.size() > 8;

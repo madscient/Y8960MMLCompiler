@@ -360,10 +360,24 @@ void sourceLines() {
 
 void outputNames() {
     bool truncated = false;
-    test::check(outputBaseName("songs/my-song.mml", truncated) == "MY_SONG" && !truncated,
+    bool replaced = false;
+    test::check(outputBaseName("songs/my-song.mml", truncated, replaced) == "MY_SONG" &&
+                    !truncated && !replaced,
                 "the base name is the stem, upper case");
-    test::check(outputBaseName("averylongname.mml", truncated) == "AVERYLON" && truncated,
+    test::check(outputBaseName("averylongname.mml", truncated, replaced) == "AVERYLON" &&
+                    truncated && !replaced,
                 "a name over eight characters is cut and says so");
+
+    // A character that is not ASCII is one '_' whatever its length in UTF-8.
+    test::check(outputBaseName("曲1.mml", truncated, replaced) == "_1" && replaced,
+                "a three byte character becomes one '_'");
+    test::check(outputBaseName("テスト曲.mml", truncated, replaced) == "____" && replaced,
+                "four characters become four '_'");
+    test::check(outputBaseName("\xF0\x9F\x98\x80" "a.mml", truncated, replaced) == "_A" && replaced,
+                "a four byte character becomes one '_'");
+    // A byte that begins no well formed sequence stands for a character of its own.
+    test::check(outputBaseName("\xFF" "\xE6" "b.mml", truncated, replaced) == "__B" && replaced,
+                "stray bytes become one '_' each");
 }
 
 } // namespace
