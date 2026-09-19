@@ -84,12 +84,12 @@ ADPCM を鳴らすには、[adpcm_packer](https://github.com/madscient/adpcm_pac
 
 ## ビルド
 
-CMake 3.20 以上と C++17 のコンパイラが要る。外部ライブラリは使わない。
+CMake 3.18 以上と C++17 のコンパイラが要る。外部ライブラリは使わない。
 
 ```sh
 cmake -S . -B build
 cmake --build build --config Release
-ctest --test-dir build -C Release --output-on-failure
+cd build && ctest -C Release --output-on-failure
 ```
 
 | オプション | 既定 | |
