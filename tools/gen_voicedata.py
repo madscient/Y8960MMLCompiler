@@ -1,6 +1,13 @@
-import re, sys, pathlib
+import argparse, pathlib, re
 
-ROM = pathlib.Path(__file__).resolve().parents[2] / "Y8960BasicExtension" / "src" / "tab"
+# The ROM repository is expected beside this one. --rom points elsewhere.
+parser = argparse.ArgumentParser(description="Generate src/core/voicedata.cpp from the ROM's tables.")
+parser.add_argument("output", help="the .cpp file to write")
+parser.add_argument("--rom", type=pathlib.Path,
+                    default=pathlib.Path(__file__).resolve().parents[2] / "Y8960BasicExtension",
+                    help="the Y8960BasicExtension checkout (default: beside this repository)")
+args = parser.parse_args()
+ROM = args.rom / "src" / "tab"
 
 def parse_db(path, label, stop_labels):
     """Collect the bytes of every `db` between `label:` and the next label."""
@@ -94,7 +101,7 @@ VoiceRecord presetWave(int n) {
 } // namespace y8
 """
 
-out = pathlib.Path(sys.argv[1])
+out = pathlib.Path(args.output)
 out.write_text(hdr + body + tail, encoding="ascii", newline="\n")
 print(f"wrote {out} ({len(voices)+len(rhythm)+len(waves)} bytes of data)")
 print("voices:", ", ".join(vnames[:4]), "...")
