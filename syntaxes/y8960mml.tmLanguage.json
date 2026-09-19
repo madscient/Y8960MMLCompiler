@@ -1,0 +1,110 @@
+{
+  "$schema": "https://raw.githubusercontent.com/martinring/tmlanguage/master/tmlanguage.json",
+  "name": "Y8960 MML",
+  "scopeName": "source.y8960mml",
+  "comment": "Follows doc/mml-source.md. Every line kind is a begin/end pair that ends at a line end not preceded by a backslash, because a trailing backslash joins the next line before the kind is decided. Track lines are coloured as melody MML: whether a track is a rhythm track depends on its #assign channel, which a TextMate grammar cannot see.",
+  "patterns": [
+    { "include": "#comment-line" },
+    { "include": "#meta-command" },
+    { "include": "#track-line" },
+    { "include": "#invalid-line" }
+  ],
+  "repository": {
+    "line-continuation": {
+      "match": "\\\\(?=\\s*$)",
+      "name": "constant.character.escape.line-continuation.y8960mml"
+    },
+
+    "comment-line": {
+      "begin": "^;",
+      "end": "(?<![\\\\\\s])\\s*$",
+      "name": "comment.line.semicolon.y8960mml",
+      "patterns": [ { "include": "#line-continuation" } ]
+    },
+
+    "meta-command": {
+      "comment": "tests/grammar_test.cpp checks the names in the (?i:(...)) group against the meta commands the compiler accepts. Keep that group's shape.",
+      "begin": "^(#)(?:(?i:(assign|define|voice|wave|pcmbank|adpcm))\\b|(\\S*))",
+      "beginCaptures": {
+        "1": { "name": "punctuation.definition.directive.y8960mml" },
+        "2": { "name": "keyword.control.directive.y8960mml" },
+        "3": { "name": "invalid.illegal.directive.y8960mml" }
+      },
+      "end": "(?<![\\\\\\s])\\s*$",
+      "name": "meta.preprocessor.y8960mml",
+      "patterns": [
+        { "include": "#line-continuation" },
+        { "include": "#string" },
+        { "include": "#device-symbol" },
+        { "include": "#meta-number" },
+        { "match": ",", "name": "punctuation.separator.comma.y8960mml" }
+      ]
+    },
+
+    "device-symbol": {
+      "comment": "tests/grammar_test.cpp checks the names in the (?:...) group against the compiler's device table. Keep that group's shape.",
+      "match": "(?i)\\b(?:SSGS|OPLLEX1|OPLLEX2|OPL2EX1|OPL2EX2|DCSG1|DCSG2|SCC)\\b",
+      "name": "support.constant.device.y8960mml"
+    },
+
+    "meta-number": {
+      "patterns": [
+        { "match": "\\$[0-9A-Fa-f]+", "name": "constant.numeric.hex.y8960mml" },
+        { "match": "(?<![\\w$])[-+]?\\d+\\b", "name": "constant.numeric.decimal.y8960mml" }
+      ]
+    },
+
+    "string": {
+      "begin": "\"",
+      "end": "\"",
+      "name": "string.quoted.double.y8960mml"
+    },
+
+    "track-line": {
+      "begin": "^([A-P])(?=[ \\t]|$)",
+      "beginCaptures": {
+        "1": { "name": "entity.name.section.track.y8960mml" }
+      },
+      "end": "(?<![\\\\\\s])\\s*$",
+      "name": "meta.track.y8960mml",
+      "patterns": [
+        { "include": "#line-continuation" },
+        { "include": "#mml" }
+      ]
+    },
+
+    "invalid-line": {
+      "comment": "Anything that is not one of the three line kinds is an error to the compiler.",
+      "match": "^(?![#;]|[A-P](?:[ \\t]|$)|\\s*$).+$",
+      "name": "invalid.illegal.line.y8960mml"
+    },
+
+    "mml": {
+      "patterns": [
+        {
+          "comment": "=name; and Xname; refer to #define. The name keeps its case.",
+          "match": "([=xX])([A-Za-z][A-Za-z0-9_]*)(;)",
+          "captures": {
+            "1": { "name": "keyword.operator.macro.y8960mml" },
+            "2": { "name": "variable.other.macro.y8960mml" },
+            "3": { "name": "punctuation.terminator.macro.y8960mml" }
+          }
+        },
+        {
+          "comment": "Loops, blocks and the bracketed marks. Spaces may fall inside them.",
+          "match": "\\|\\s*:|:\\s*\\||\\[|\\]|\\(\\s*(?:\\*|(?i:d\\s*c|d\\s*s|t\\s*c|c\\s*o\\s*d\\s*a|f\\s*i\\s*n\\s*e))\\s*\\)",
+          "name": "keyword.control.flow.y8960mml"
+        },
+        { "match": "\\$[0-9A-Fa-f]{2}", "name": "constant.numeric.hex.y8960mml" },
+        { "match": "\\d+", "name": "constant.numeric.decimal.y8960mml" },
+        { "match": "(?i)[a-g][+#-]?", "name": "keyword.other.note.y8960mml" },
+        { "match": "(?i)r", "name": "keyword.other.rest.y8960mml" },
+        { "match": "(?i)@[vwpa]?|[lLoOtTqQvVsSmMnNiIpPyY~&]", "name": "support.function.command.y8960mml" },
+        { "match": "[<>]", "name": "keyword.operator.octave.y8960mml" },
+        { "match": "[{}]", "name": "punctuation.section.tuplet.y8960mml" },
+        { "match": "\\.", "name": "keyword.operator.dot.y8960mml" },
+        { "match": ",", "name": "punctuation.separator.comma.y8960mml" }
+      ]
+    }
+  }
+}

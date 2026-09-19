@@ -78,6 +78,9 @@ constexpr int kUserWaveLast = 31;
 // read are kept, so one bad line does not hide the rest.
 bool readSource(const std::string& path, SourceFile& out, Diagnostics& diag);
 
+// The meta command names the reader accepts, in lower case.
+std::vector<std::string> metaCommandNames();
+
 // Splits text into the lines readSource would see. Exposed for the tests.
 bool readSourceText(const std::string& path, const std::string& text, SourceFile& out,
                     Diagnostics& diag);

@@ -353,6 +353,22 @@ void doRecord(const Context& ctx, bool wave) {
     into.emplace(static_cast<int>(number), def);
 }
 
+// The one list of meta commands. syntaxes/y8960mml.tmLanguage.json names them
+// too, and tests/grammar_test.cpp holds the two lists to each other.
+struct MetaCommand {
+    const char* name;
+    void (*handler)(const Context&);
+};
+
+const MetaCommand kMetaCommands[] = {
+    {"assign", doAssign},
+    {"define", doDefine},
+    {"voice", [](const Context& c) { doRecord(c, false); }},
+    {"wave", [](const Context& c) { doRecord(c, true); }},
+    {"pcmbank", doPcmBank},
+    {"adpcm", doAdpcm},
+};
+
 void doTrackLine(SourceFile& src, const Logical& line) {
     int index = line.text[0] - 'A';
     TrackSource& t = src.tracks[index];
@@ -374,6 +390,12 @@ void doTrackLine(SourceFile& src, const Logical& line) {
 }
 
 } // namespace
+
+std::vector<std::string> metaCommandNames() {
+    std::vector<std::string> names;
+    for (const MetaCommand& m : kMetaCommands) names.emplace_back(m.name);
+    return names;
+}
 
 void TrackSource::locate(std::size_t offset, int& line, int& column) const {
     line = 0;
@@ -439,18 +461,12 @@ bool readSourceText(const std::string& path, const std::string& text, SourceFile
             Context ctx{out, logical, diag};
             std::vector<Word> w = split(line, 1);
             std::string name = w.empty() ? std::string() : lower(w[0].text);
-            if (name == "assign") {
-                doAssign(ctx);
-            } else if (name == "define") {
-                doDefine(ctx);
-            } else if (name == "pcmbank") {
-                doPcmBank(ctx);
-            } else if (name == "adpcm") {
-                doAdpcm(ctx);
-            } else if (name == "voice") {
-                doRecord(ctx, false);
-            } else if (name == "wave") {
-                doRecord(ctx, true);
+            const MetaCommand* found = nullptr;
+            for (const MetaCommand& m : kMetaCommands) {
+                if (name == m.name) found = &m;
+            }
+            if (found) {
+                found->handler(ctx);
             } else {
                 diag.error(path, firstLine, 1, "'#" + name + "' is not a meta command");
             }
