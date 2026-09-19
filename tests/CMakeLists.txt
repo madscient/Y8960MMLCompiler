@@ -20,3 +20,9 @@ if(TARGET y8mmlc)
     add_dependencies(cli_test y8mmlc)
     add_test(NAME cli COMMAND cli_test)
 endif()
+
+# The words y8mmlc prints are English and ASCII: nothing outside a comment in
+# src/ may be anything else.
+add_executable(ascii_test ascii_test.cpp)
+target_compile_definitions(ascii_test PRIVATE Y8MMLC_SOURCE_DIR="${PROJECT_SOURCE_DIR}")
+add_test(NAME ascii COMMAND ascii_test)
