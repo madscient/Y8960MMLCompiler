@@ -1,7 +1,7 @@
 # Y8960 MML Compiler
 
 MML を書いたテキストファイルから、
-[Y8960 BASIC Extension](https://github.com/madscient/Y8960BasicExtension) の
+[Y8960 BASIC Extension](https://github.com/madscient/MsxSoundSuiteExtension) の
 `CALL MSAVE` が書き出すのと同じシーケンスデータ（`Y8SQ`）と、`CALL EXPORT PCM`
 が書き出すのと同じ ADPCM ファイル（`Y8PC`）を作るクロスコンパイラ。
 Windows / Linux / macOS 向けのコマンドラインツール。
@@ -106,10 +106,11 @@ cd build && ctest -C Release --output-on-failure
 | [`syntaxes/y8960mml.tmLanguage.json`](syntaxes/y8960mml.tmLanguage.json) | 構文強調の TextMate 文法（`scopeName` は `source.y8960mml`）。リズム音用 MML のトラックも普通の MML として色が付く |
 | [`doc/plan.md`](doc/plan.md) | 設計判断、見送った案、未決事項、進捗 |
 
-出力するデータの形そのものは Y8960 BASIC Extension の
-[`doc/bytecode.md`](https://github.com/madscient/Y8960BasicExtension/blob/main/doc/bytecode.md)
+出力するデータの形そのものは、[MSX Sound Suite Extension](https://github.com/madscient/MsxSoundSuiteExtension) に
+収められた Y8960 BASIC Extension の文書
+[`bytecode.md`](https://github.com/madscient/MsxSoundSuiteExtension/blob/master/docs/y8960/bytecode.md)
 と
-[`doc/pcmfile.md`](https://github.com/madscient/Y8960BasicExtension/blob/main/doc/pcmfile.md)
+[`pcmfile.md`](https://github.com/madscient/MsxSoundSuiteExtension/blob/master/docs/y8960/pcmfile.md)
 が正。
 
 ## ライセンス
@@ -122,11 +123,12 @@ cd build && ctest -C Release --output-on-failure
 **仕様**を流用したのであってコードではない。**例外は音色データ1本。**
 
 `src/core/voicedata.cpp` のプリセット FM 音色64本は
-[Y8960 BASIC Extension](https://github.com/madscient/Y8960BasicExtension) の
-`src/tab/voicedat.asm` から機械的に写したもので、そちらは
-[MSX-AUDIO BASIC Extension Lite](https://github.com/madscient/MsxAudioBasicExtensionLite)
-の `src/vocdat.mac` の写し、さらにそちらは日本楽器製造株式会社（YAMAHA）および
-株式会社アスキーの著作物をフォークしたもの。レコードの形も中身も変えていない。
+Y8960 BASIC Extension の `src/tab/voicedat.asm` から機械的に写したもので、
+そちらは MSX-AUDIO BASIC Extension Lite の `src/vocdat.mac` の写し、さらに
+そちらは日本楽器製造株式会社（YAMAHA）および株式会社アスキーの著作物を
+フォークしたもの。レコードの形も中身も変えていない。Y8960 BASIC Extension と
+MSX-AUDIO BASIC Extension Lite は、どちらも
+[MSX Sound Suite Extension](https://github.com/madscient/MsxSoundSuiteExtension) に収められている。
 
 **同じファイルのリズム音色3本だけは出典が異なる。** OPLL の ROM リズム音色を
 Y8950 のレジスタへ変換したもので、元データは下記による。
@@ -150,6 +152,6 @@ ADPCM プリセットとして配布する。
 
 | | |
 |---|---|
-| Y8960 BASIC Extension | <https://github.com/madscient/Y8960BasicExtension> |
+| MSX Sound Suite Extension（Y8960 BASIC Extension を含む） | <https://github.com/madscient/MsxSoundSuiteExtension> |
 | Y8960Sequencer | <https://github.com/madscient/Y8960Sequencer> |
 | adpcm_packer | <https://github.com/madscient/adpcm_packer> |
