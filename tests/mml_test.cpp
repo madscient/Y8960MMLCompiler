@@ -108,6 +108,36 @@ void voices() {
     test::check(refused("OPL2EX1 0", "@64C4"), "@64 names no voice");
 }
 
+void registerRanges() {
+    // Each device takes its own chip's register numbers.
+    struct Case {
+        const char* assign;
+        const char* mml;
+        bool ok;
+    };
+    const Case cases[] = {
+        {"SSGS 0", "Y$0D,0", true},      {"SSGS 0", "Y$0E,0", false},
+        {"SSGS 0", "Y$1F,0", false},     {"SSGS 0", "Y$20,0", true},
+        {"SSGS 0", "Y$2D,0", true},      {"SSGS 0", "Y$2E,0", false},
+        {"OPLLEX1 0", "Y$07,0", true},   {"OPLLEX1 0", "Y$08,0", false},
+        {"OPLLEX1 0", "Y$0E,0", true},   {"OPLLEX1 0", "Y$18,0", true},
+        {"OPLLEX1 0", "Y$19,0", false},  {"OPLLEX1 0", "Y$28,0", true},
+        {"OPLLEX1 0", "Y$29,0", false},  {"OPLLEX1 0", "Y$38,0", true},
+        {"OPLLEX1 0", "Y$39,0", false},  {"OPLLEX1 0", "Y$40,0", true},
+        {"OPLLEX1 0", "Y$48,0", true},   {"OPLLEX1 0", "Y$49,0", false},
+        {"OPL2EX1 0", "Y$03,0", true},   {"OPL2EX1 0", "Y$04,0", false},
+        {"OPL2EX1 0", "Y$05,0", true},   {"OPL2EX1 0", "Y$FF,0", true},
+        {"DCSG1 0", "Y7,15", true},      {"DCSG1 0", "Y8,0", false},
+        {"DCSG1 0", "Y7,16", false},     {"SCC 0", "Y$FF,$FF", true},
+        // A rhythm or ADPCM track writes the registers of the block it is on.
+        {"OPLLEX1 10", "Y$0E,$20", true}, {"OPL2EX1 9", "Y$04,0", false},
+    };
+    for (const Case& c : cases) {
+        test::check(refused(c.assign, c.mml) != c.ok,
+                    std::string(c.assign) + " " + c.mml + (c.ok ? " is taken" : " is refused"));
+    }
+}
+
 void loops() {
     // The distance is counted from just past the two bytes that hold it.
     test::checkBytes("|:C:|2", track("SSGS 0", "L8|:C:|2"),
@@ -385,6 +415,7 @@ void outputNames() {
 int main() {
     notesAndLengths();
     voices();
+    registerRanges();
     loops();
     marks();
     rhythmTrack();

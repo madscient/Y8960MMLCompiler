@@ -2,7 +2,7 @@
   "$schema": "https://raw.githubusercontent.com/martinring/tmlanguage/master/tmlanguage.json",
   "name": "Y8960 MML",
   "scopeName": "source.y8960mml",
-  "comment": "Follows doc/mml-source.md. Every line kind is a begin/end pair that ends at a line end not preceded by a backslash, because a trailing backslash joins the next line before the kind is decided. Track lines are coloured as melody MML: whether a track is a rhythm track depends on its #assign channel, which a TextMate grammar cannot see.",
+  "comment": "Follows doc/mml-source.md and doc/mml-reference.md. Every line kind is a begin/end pair that ends at a line end not preceded by a backslash, because a trailing backslash joins the next line before the kind is decided. Track lines are coloured as melody MML: whether a track is a rhythm track depends on its #assign channel, which a TextMate grammar cannot see.",
   "patterns": [
     { "include": "#comment-line" },
     { "include": "#meta-command" },
