@@ -653,6 +653,16 @@ Y8PC の設定 36 件・Y8SQ のチャンク 03 が 36 件になり、Y8960Seque
   外から見える値5件を利用者と決めた（ADPCM の与え方、出力ファイル名、GUI の
   後回し、変数参照のマクロ化、音色表の同梱）。リポジトリの骨格と、この文書と
   `mml-source.md` を作った
+- 2026-09-19: **v0.1.0 を GitHub Releases に出した**（`2978d7a` にタグ）。
+  Windows x64（MSVC、CRT 静的）と Linux x64（Debian 11 の GCC 10.2.1、
+  libstdc++/libgcc 静的、glibc 2.14 以降）の実行ファイルに、利用者向けの文書・
+  文法・presets・例と、コミットと SHA-256 を書いた `MANIFEST.txt` を添えた。
+  macOS 版は出していない（ビルド環境が無い）。この文書は AI 向けなので
+  配布物に入れず、`.gitattributes` の `export-ignore` で Source code の
+  アーカイブからも外した（確認済み：公開後のアーカイブを落とし、zip・tar.gz
+  とも `doc/plan.md` が無く `doc/mml-reference.md` は在ることを見た）。
+  配布物は展開して `MANIFEST.txt` の全ハッシュが合い、両版で demo の出力が
+  一致することを確かめた
 - 2026-09-19: ROM の `10cc834` に追従した。ROM は仕様と食い違う4件をコードの側で
   直したので、こちらは変えていない。同じコミットで仕様にセーニョの目印 `86` が
   入ったので、`(*)`*n* が `86 n` を出すようにした。音色表の節の「ROM は公開
