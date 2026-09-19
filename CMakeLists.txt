@@ -10,6 +10,10 @@ option(Y8MMLC_BUILD_TESTS "Build the tests" ON)
 
 set(CMAKE_RUNTIME_OUTPUT_DIRECTORY "${CMAKE_BINARY_DIR}/bin/$<CONFIG>")
 
+# The executable is handed out on its own, so it carries its C++ runtime rather
+# than asking for the Visual C++ redistributable.
+set(CMAKE_MSVC_RUNTIME_LIBRARY "MultiThreaded$<$<CONFIG:Debug>:Debug>")
+
 if(MSVC)
     add_compile_options(/utf-8 /W4)
 else()

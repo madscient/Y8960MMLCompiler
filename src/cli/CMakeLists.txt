@@ -6,3 +6,9 @@ target_link_libraries(y8mmlc PRIVATE y8mmlc_core)
 if(WIN32)
     target_sources(y8mmlc PRIVATE y8mmlc.manifest)
 endif()
+
+# Handed out on its own, so the C++ runtime goes inside rather than depending on
+# the libstdc++ of whatever distribution runs it.
+if(CMAKE_CXX_COMPILER_ID STREQUAL "GNU" AND NOT APPLE)
+    target_link_options(y8mmlc PRIVATE -static-libstdc++ -static-libgcc)
+endif()

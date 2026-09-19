@@ -6,3 +6,4 @@ out/
 examples/*.SQ
 examples/*.PC
 wavs/
+dist/
