@@ -110,7 +110,6 @@ cd build && ctest -C Release --output-on-failure
 | [`doc/mml-reference.md`](doc/mml-reference.md) | MML のコマンドとその意味 |
 | [`doc/mml-source.md`](doc/mml-source.md) | MML ソースファイルの書き方 |
 | [`syntaxes/y8960mml.tmLanguage.json`](syntaxes/y8960mml.tmLanguage.json) | 構文強調の TextMate 文法（`scopeName` は `source.y8960mml`）。リズム音用 MML のトラックも普通の MML として色が付く |
-| [`doc/plan.md`](doc/plan.md) | 設計判断、見送った案、未決事項、進捗 |
 
 出力するデータの形そのものは、[MSX Sound Suite Extension](https://github.com/madscient/MsxSoundSuiteExtension) に
 収められた Y8960 BASIC Extension の文書
