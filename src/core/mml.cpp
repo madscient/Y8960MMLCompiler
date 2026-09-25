@@ -434,15 +434,17 @@ void TrackCompiler::noteEmit(std::uint8_t op, int ticks) {
 // octave, so they are opcodes of their own rather than a semitone of it.
 void TrackCompiler::cmdNote(char c) {
     int semi = kSemitone[c - 'a'];
-    std::uint8_t op = static_cast<std::uint8_t>(OpNote + semi);
     char a;
     if (peek(a) && (a == '+' || a == '#')) {
         skip();
-        op = (semi == 11) ? OpNoteUp : static_cast<std::uint8_t>(OpNote + semi + 1);
+        ++semi;
     } else if (peek(a) && a == '-') {
         skip();
-        op = (semi == 0) ? OpNoteDown : static_cast<std::uint8_t>(OpNote + semi - 1);
+        --semi;
     }
+    std::uint8_t op = static_cast<std::uint8_t>(OpNote + semi);
+    if (semi < 0) op = OpNoteDown;
+    if (semi > 11) op = OpNoteUp;
     int ticks = getLen();
     noteEmit(op, ticks);
 }
