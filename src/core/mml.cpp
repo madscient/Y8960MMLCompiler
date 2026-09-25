@@ -430,18 +430,21 @@ void TrackCompiler::noteEmit(std::uint8_t op, int ticks) {
     timeFlag(ticks);
 }
 
+// c- and b+ leave the octave for the one note without moving the running
+// octave, so they are opcodes of their own rather than a semitone of it.
 void TrackCompiler::cmdNote(char c) {
     int semi = kSemitone[c - 'a'];
+    std::uint8_t op = static_cast<std::uint8_t>(OpNote + semi);
     char a;
     if (peek(a) && (a == '+' || a == '#')) {
         skip();
-        semi = (semi + 1) % 12;
+        op = (semi == 11) ? OpNoteUp : static_cast<std::uint8_t>(OpNote + semi + 1);
     } else if (peek(a) && a == '-') {
         skip();
-        semi = (semi + 11) % 12;
+        op = (semi == 0) ? OpNoteDown : static_cast<std::uint8_t>(OpNote + semi - 1);
     }
     int ticks = getLen();
-    noteEmit(static_cast<std::uint8_t>(OpNote + semi), ticks);
+    noteEmit(op, ticks);
 }
 
 void TrackCompiler::cmdNoteAbs() {

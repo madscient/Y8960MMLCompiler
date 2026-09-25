@@ -12,6 +12,8 @@ enum Op : std::uint8_t {
     OpNote = 0x00,      // 00-0B, c c+ d d+ e f f+ g g+ a a+ b, then a length
     OpRest = 0x0C,      // then a length
     OpWait = 0x0E,      // then a length
+    OpNoteDown = 0x0F,  // c-, the b of the octave below; then a length
+    OpNoteUp = 0x10,    // b+, the c of the octave above; then a length
     OpOctUp = 0x40,
     OpOctDown = 0x41,
     OpLoopStart = 0x42,

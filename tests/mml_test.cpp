@@ -60,9 +60,15 @@ void notesAndLengths() {
     test::checkBytes("{C8DE}4", track("SSGS 0", "{C8DE}4"),
                      bytes({0x00, 0x18, 0x02, 0x10, 0x04, 0x10, 0xFF}));
 
-    // Accidentals fold inside the octave: c- is the b of the same octave.
+    // ROM: c- and b+ step into the next octave for the one note only, and
+    // leave the running octave where it was.
     test::checkBytes("C- and B+", track("SSGS 0", "L4C-B+"),
-                     bytes({0x0B, 0x30, 0x00, 0x30, 0xFF}));
+                     bytes({0x0F, 0x30, 0x10, 0x30, 0xFF}));
+    test::checkBytes("C-C and B+B", track("SSGS 0", "L4C-CB+B"),
+                     bytes({0x0F, 0x30, 0x00, 0x30, 0x10, 0x30, 0x0B, 0x30, 0xFF}));
+    // The other accidentals stay in the octave.
+    test::checkBytes("E+F-D-C+", track("SSGS 0", "L4E+F-D-C+"),
+                     bytes({0x05, 0x30, 0x04, 0x30, 0x01, 0x30, 0x01, 0x30, 0xFF}));
     // Two dots add half and then a quarter.
     test::checkBytes("C4..", track("SSGS 0", "C4.."), bytes({0x00, 0x54, 0xFF}));
     // A length divides and truncates: 192/7 is 27.
