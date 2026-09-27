@@ -11,8 +11,8 @@ Windows / Linux / macOS 向けのコマンドラインツール。
 ## 入手
 
 [Releases](https://github.com/madscient/Y8960MMLCompiler/releases) から、
-Windows（x64）と Linux（x64）の実行ファイルを入手できる。展開した `y8mmlc` を
-そのまま使う。ほかの環境では、下の「ビルド」の手順でソースから作る。
+Windows（x64）と Linux（x64）の実行ファイルを入手できる。展開した `y8mmlc` と
+`y8mmld` をそのまま使う。ほかの環境では、下の「ビルド」の手順でソースから作る。
 
 ## 使い方
 
