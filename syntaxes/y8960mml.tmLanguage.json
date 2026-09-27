@@ -24,7 +24,7 @@
 
     "meta-command": {
       "comment": "tests/grammar_test.cpp checks the names in the (?i:(...)) group against the meta commands the compiler accepts. Keep that group's shape.",
-      "begin": "^(#)(?:(?i:(assign|define|voice|wave|pcmbank|adpcm))\\b|(\\S*))",
+      "begin": "^(#)(?:(?i:(assign|define|voice|wave|env|pcmbank|adpcm))\\b|(\\S*))",
       "beginCaptures": {
         "1": { "name": "punctuation.definition.directive.y8960mml" },
         "2": { "name": "keyword.control.directive.y8960mml" },
@@ -99,7 +99,7 @@
         { "match": "\\d+", "name": "constant.numeric.decimal.y8960mml" },
         { "match": "(?i)[a-g][+#-]?", "name": "keyword.other.note.y8960mml" },
         { "match": "(?i)r", "name": "keyword.other.rest.y8960mml" },
-        { "match": "(?i)@[vwpa]?|[lLoOtTqQvVsSmMnNiIpPyY~&]", "name": "support.function.command.y8960mml" },
+        { "match": "(?i)@[vwpae]?|[lLoOtTqQvVsSmMnNiIpPyY~&]", "name": "support.function.command.y8960mml" },
         { "match": "[<>]", "name": "keyword.operator.octave.y8960mml" },
         { "match": "[{}]", "name": "punctuation.section.tuplet.y8960mml" },
         { "match": "\\.", "name": "keyword.operator.dot.y8960mml" },

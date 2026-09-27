@@ -7,6 +7,7 @@
 
 #include "device.h"
 #include "diag.h"
+#include "opcodes.h"
 #include "voicedata.h"
 
 namespace y8 {
@@ -54,6 +55,14 @@ struct RecordDef {
     int line = 0;
 };
 
+// AR, DR, SL and RR, in the order chunk 04 carries them.
+using EnvRecord = std::array<std::uint8_t, kEnvValues>;
+
+struct EnvDef {
+    EnvRecord values{};
+    int line = 0;
+};
+
 struct SourceFile {
     std::string path;
     std::array<TrackSource, kTrackCount> tracks;
@@ -63,6 +72,7 @@ struct SourceFile {
     // come from the table the compiler carries.
     std::map<int, RecordDef> userVoices;
     std::map<int, RecordDef> userWaves;
+    std::map<int, EnvDef> envelopes;  // #env, 1-31
 
     std::string pcmBankJson;  // empty when the source has no #pcmbank
     int pcmBankLine = 0;

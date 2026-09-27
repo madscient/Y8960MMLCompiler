@@ -2,6 +2,7 @@
 
 #include <array>
 #include <cstdint>
+#include <map>
 #include <set>
 #include <vector>
 
@@ -24,6 +25,9 @@ struct Sequence {
     VoiceSet voices;
     // The voice files the ADPCM tracks sound, which is what chunk 03 carries.
     std::set<int> adpcmVoiceFiles;
+    // The software envelopes the PSG family's tracks name, which is what
+    // chunk 04 carries.
+    std::map<int, EnvRecord> envelopes;
 };
 
 // Compiles every assigned track of `src`. Tracks are taken in order A to P, so

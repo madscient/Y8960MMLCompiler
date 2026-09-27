@@ -241,13 +241,16 @@ void doAdpcm(const Context& ctx) {
         {static_cast<int>(number), w[2].text, ctx.line.segments.front().line});
 }
 
-// The bytes of a record, written as a comma separated list. An item is a
-// "..." string, which contributes its characters, or a number: $hh is the byte
-// as it stands and a decimal one may be negative, which is the form a waveform
-// level is written in.
-bool recordBytes(const Context& ctx, std::size_t from, VoiceRecord& out) {
+// A comma separated list of `size` bytes. An item is a number: $hh is the byte
+// as it stands. A record also takes a "..." string, which contributes its
+// characters, and a negative decimal, which is the form a waveform level is
+// written in; an envelope's four values are rates and a level, and take
+// neither.
+bool byteList(const Context& ctx, std::size_t from, std::size_t size, bool record,
+              std::vector<std::uint8_t>& bytes) {
     const std::string& line = ctx.line.text;
-    std::vector<std::uint8_t> bytes;
+    const std::string what = record ? "a record is " + std::to_string(size) + " bytes"
+                                    : "#env takes " + std::to_string(size) + " values";
     std::size_t i = from;
 
     for (;;) {
@@ -258,7 +261,7 @@ bool recordBytes(const Context& ctx, std::size_t from, VoiceRecord& out) {
         }
         const std::size_t itemAt = i;
 
-        if (line[i] == '"') {
+        if (record && line[i] == '"') {
             std::size_t close = line.find('"', i + 1);
             if (close == std::string::npos) {
                 ctx.error(i, "this string has no closing quote");
@@ -288,16 +291,16 @@ bool recordBytes(const Context& ctx, std::size_t from, VoiceRecord& out) {
                     ctx.error(start, "'" + item + "' is not a byte written as $00 to $FF");
                     return false;
                 }
-            } else if (!parseInt(item, v) || v < -128 || v > 255) {
-                ctx.error(start, "'" + item + "' is not a value; a byte is -128 to 255");
+            } else if (!parseInt(item, v) || v < (record ? -128 : 0) || v > 255) {
+                ctx.error(start, "'" + item + "' is not a value; a byte is " +
+                                     (record ? "-128" : "0") + " to 255");
                 return false;
             }
             bytes.push_back(static_cast<std::uint8_t>(v & 0xFF));
         }
 
-        if (bytes.size() > static_cast<std::size_t>(kVoiceRecordSize)) {
-            ctx.error(itemAt, "a record is " + std::to_string(kVoiceRecordSize) +
-                                  " bytes; this one runs past the end");
+        if (bytes.size() > size) {
+            ctx.error(itemAt, what + "; this one runs past the end");
             return false;
         }
 
@@ -310,12 +313,10 @@ bool recordBytes(const Context& ctx, std::size_t from, VoiceRecord& out) {
         ++i;
     }
 
-    if (bytes.size() != static_cast<std::size_t>(kVoiceRecordSize)) {
-        ctx.error(from, "a record is " + std::to_string(kVoiceRecordSize) + " bytes; this is " +
-                            std::to_string(bytes.size()));
+    if (bytes.size() != size) {
+        ctx.error(from, what + "; this is " + std::to_string(bytes.size()));
         return false;
     }
-    std::copy(bytes.begin(), bytes.end(), out.begin());
     return true;
 }
 
@@ -349,8 +350,41 @@ void doRecord(const Context& ctx, bool wave) {
 
     RecordDef def;
     def.line = ctx.line.segments.front().line;
-    if (!recordBytes(ctx, w[2].offset, def.record)) return;
+    std::vector<std::uint8_t> bytes;
+    if (!byteList(ctx, w[2].offset, def.record.size(), true, bytes)) return;
+    std::copy(bytes.begin(), bytes.end(), def.record.begin());
     into.emplace(static_cast<int>(number), def);
+}
+
+// The values go into the block as written. The ROM does not check them either:
+// it plays a rate past 32 as 32 and a level past 15 as 15.
+void doEnv(const Context& ctx) {
+    const std::string& line = ctx.line.text;
+    std::vector<Word> w = split(line, 1);
+    if (w.size() < 3) {
+        ctx.error(0, "#env takes a number and " + std::to_string(kEnvValues) +
+                         " values: AR, DR, SL, RR");
+        return;
+    }
+    long number = 0;
+    if (!parseInt(w[1].text, number) || number < 1 || number > kEnvMax) {
+        ctx.error(w[1].offset, "#env takes a number from 1 to " + std::to_string(kEnvMax) +
+                                   "; @E0 is no envelope");
+        return;
+    }
+    auto it = ctx.src.envelopes.find(static_cast<int>(number));
+    if (it != ctx.src.envelopes.end()) {
+        ctx.error(w[1].offset, "#env " + w[1].text + " is already defined (line " +
+                                   std::to_string(it->second.line) + ")");
+        return;
+    }
+
+    EnvDef def;
+    def.line = ctx.line.segments.front().line;
+    std::vector<std::uint8_t> bytes;
+    if (!byteList(ctx, w[2].offset, def.values.size(), false, bytes)) return;
+    std::copy(bytes.begin(), bytes.end(), def.values.begin());
+    ctx.src.envelopes.emplace(static_cast<int>(number), def);
 }
 
 // The one list of meta commands. syntaxes/y8960mml.tmLanguage.json names them
@@ -365,6 +399,7 @@ const MetaCommand kMetaCommands[] = {
     {"define", doDefine},
     {"voice", [](const Context& c) { doRecord(c, false); }},
     {"wave", [](const Context& c) { doRecord(c, true); }},
+    {"env", doEnv},
     {"pcmbank", doPcmBank},
     {"adpcm", doAdpcm},
 };

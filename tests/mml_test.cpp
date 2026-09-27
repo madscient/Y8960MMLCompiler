@@ -73,8 +73,15 @@ void notesAndLengths() {
     test::checkBytes("C4..", track("SSGS 0", "C4.."), bytes({0x00, 0x54, 0xFF}));
     // A length divides and truncates: 192/7 is 27.
     test::checkBytes("C7", track("SSGS 0", "C7"), bytes({0x00, 0x1B, 0xFF}));
-    // At the top an octave up writes nothing, and is not an error.
-    test::checkBytes("O8 then >", track("SSGS 0", "O8>"), bytes({0x80, 0x08, 0xFF}));
+    // Octaves are 0 to 9. At either end < and > write nothing, and are not an
+    // error.
+    test::checkBytes("O9 then >", track("SSGS 0", "O9>"), bytes({0x80, 0x09, 0xFF}));
+    test::checkBytes("O0 then <", track("SSGS 0", "O0<"), bytes({0x80, 0x00, 0xFF}));
+    test::checkBytes("< down to O0", track("SSGS 0", "<<<<<"),
+                     bytes({0x41, 0x41, 0x41, 0x41, 0xFF}));
+    test::checkBytes("> up to O9", track("SSGS 0", ">>>>>>"),
+                     bytes({0x40, 0x40, 0x40, 0x40, 0x40, 0xFF}));
+    test::check(refused("SSGS 0", "O10C"), "O10 is refused");
     // $ takes two digits so the note after it stays a note.
     test::checkBytes("Y$20,$0FCDE", track("SSGS 0", "L4Y$20,$0FCDE"),
                      bytes({0xE0, 0x20, 0x0F, 0x00, 0x00, 0x30, 0x02, 0x30, 0x04, 0x30, 0xFF}));
@@ -82,9 +89,14 @@ void notesAndLengths() {
     test::checkBytes("spaces", track("SSGS 0", "L 1 6 C"), bytes({0x00, 0x0C, 0xFF}));
 
     // ROM: an N takes a length only through a name, since all its digits are the
-    // note number. Zero lengths need time between them here too.
+    // note number. Zero lengths need time between them here too. N counts from
+    // O1 C and the note number from O0 C, so the byte is n + 12.
     test::checkBytes("N60=Z;R4N62=Z;", track("SSGS 0", "N60=Z;R4N62=Z;", "#define Z 0\n"),
-                     bytes({0xC0, 0x3C, 0x00, 0x0C, 0x30, 0xC0, 0x3E, 0x00, 0xFF}));
+                     bytes({0xC0, 0x48, 0x00, 0x0C, 0x30, 0xC0, 0x4A, 0x00, 0xFF}));
+    test::checkBytes("N0 is O1 C", track("SSGS 0", "N0"), bytes({0xC0, 0x0C, 0x30, 0xFF}));
+    test::checkBytes("N36 is O4 C", track("SSGS 0", "N36"), bytes({0xC0, 0x30, 0x30, 0xFF}));
+    test::checkBytes("N127", track("SSGS 0", "N127"), bytes({0xC0, 0x8B, 0x30, 0xFF}));
+    test::check(refused("SSGS 0", "N128"), "N128 is refused");
     test::check(refused("SSGS 0", "C0N62"), "a note number straight after a zero length note");
     test::check(track("SSGS 0", "N60=Z;N62=Z;", "#define Z 0\n").empty(),
                 "two zero length note numbers with no time between are refused");
@@ -249,6 +261,61 @@ void adpcmTrack() {
                      bytes({0x82, 0x02, 0x80, 0x05, 0x04, 0x30, 0xFF}));
     test::check(!refused("OPL2EX1 9", "@63C4"), "63 is the last voice file number");
     test::check(refused("OPL2EX1 9", "@64C4"), "a voice file number over 63 is refused");
+}
+
+void envelopes() {
+    const std::string env = "#env 1 16,20,8,10\n";
+    // ROM's softenv test: @E1V15L2O4CR1 on the SSGS.
+    test::checkBytes("@E1 on the SSGS", track("SSGS 0", "@E1V15L2O4CR1", env),
+                     bytes({0xB2, 0x01, 0x81, 0x7F, 0x80, 0x04, 0x00, 0x60, 0x0C, 0x80, 0xC0,
+                            0xFF}));
+    test::checkBytes("@E1 on the SCC", track("SCC 0", "@E1C4", env),
+                     bytes({0xB2, 0x01, 0x85, 0x00, 0x00, 0x30, 0xFF}));
+    test::checkBytes("@E1 on the DCSG", track("DCSG1 0", "@E1C4", env),
+                     bytes({0xB2, 0x01, 0x00, 0x30, 0xFF}));
+    // @E0 is no envelope and needs no #env.
+    test::checkBytes("@E0", track("SSGS 0", "@E0C4"), bytes({0xB2, 0x00, 0x00, 0x30, 0xFF}));
+    // Space may fall between @E and its number, as anywhere else.
+    test::checkBytes("@e 1", track("SSGS 0", "@e 1C4", env),
+                     bytes({0xB2, 0x01, 0x00, 0x30, 0xFF}));
+
+    // On the FM family it is read and dropped, defined or not.
+    test::checkBytes("@E1 on FM", track("OPL2EX1 0", "@E1C4"),
+                     bytes({0x85, 0x00, 0x00, 0x30, 0xFF}));
+    test::checkBytes("@E1 on ADPCM", track("OPL2EX1 9", "@E1@2O5E4"),
+                     bytes({0x82, 0x02, 0x80, 0x05, 0x04, 0x30, 0xFF}));
+    test::checkBytes("@E1 on rhythm", track("OPLLEX1 10", "@E1B8"),
+                     bytes({0xA8, 0x00, 0xC8, 0x10, 0x18, 0xFF}));
+
+    test::check(refused("SSGS 0", "@E2C4"), "@E2 with no #env is refused");
+    test::check(refused("SSGS 0", "@E32C4"), "@E32 is refused");
+    test::check(refused("OPL2EX1 0", "@E32C4"), "@E32 is refused on FM too");
+    test::check(refused("SSGS 0", "@EC4"), "@E with no number is refused");
+
+    // #env: a number 1-31 and four values 0-255, not checked against what the
+    // player takes.
+    const struct {
+        const char* line;
+        bool ok;
+    } cases[] = {
+        {"#env 1 16,20,8,10", true},    {"#env 31 0, 0, 0, 0", true},
+        {"#env 2 $FF,255,99,40", true}, {"#env 0 1,2,3,4", false},
+        {"#env 32 1,2,3,4", false},     {"#env 1 1,2,3", false},
+        {"#env 1 1,2,3,4,5", false},    {"#env 1 1,2,3,256", false},
+        {"#env 1 1,2,-3,4", false},     {"#env 1 \"ab\",3,4", false},
+        {"#env 1", false},
+    };
+    for (const auto& c : cases) {
+        Diagnostics diag;
+        SourceFile src;
+        readSourceText("t.mml", std::string(c.line) + "\n", src, diag);
+        test::check(diag.hasErrors() != c.ok,
+                    std::string(c.line) + (c.ok ? " is taken" : " is refused"));
+    }
+    Diagnostics twice;
+    SourceFile twiceSrc;
+    readSourceText("t.mml", env + env, twiceSrc, twice);
+    test::check(twice.hasErrors(), "the same #env number twice is refused");
 }
 
 void macros() {
@@ -442,6 +509,7 @@ int main() {
     marks();
     rhythmTrack();
     adpcmTrack();
+    envelopes();
     macros();
     records();
     continuation();

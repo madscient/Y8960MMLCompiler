@@ -19,6 +19,7 @@ constexpr std::uint8_t kChunkTrack = 0x00;
 constexpr std::uint8_t kChunkVoice = 0x01;
 constexpr std::uint8_t kChunkWave = 0x02;
 constexpr std::uint8_t kChunkVoiceFile = 0x03;
+constexpr std::uint8_t kChunkEnvelope = 0x04;
 constexpr int kRhythmSlotFirst = 32;  // slots 32-34, outside the set events name
 
 } // namespace
@@ -71,6 +72,13 @@ std::vector<std::uint8_t> writeBlock(const Sequence& seq, const AdpcmData& adpcm
         putWord(body, static_cast<unsigned>(f.pageCount));
         putWord(body, static_cast<unsigned>(f.sampleRate));
         putChunk(out, kChunkVoiceFile, body);
+    }
+
+    for (const auto& env : seq.envelopes) {
+        std::vector<std::uint8_t> body;
+        body.push_back(static_cast<std::uint8_t>(env.first));
+        body.insert(body.end(), env.second.begin(), env.second.end());
+        putChunk(out, kChunkEnvelope, body);
     }
 
     out[5] = static_cast<std::uint8_t>(out.size() & 0xFF);

@@ -93,6 +93,31 @@ void rhythmVoices() {
                 "OPLLEX has its own rhythm sounds, so none are carried");
 }
 
+void envelopeChunks() {
+    Diagnostics diag;
+    CompileResult out;
+    // Only the envelopes a PSG track names are carried, and @E0 names none.
+    test::check(compileText("t.mml",
+                            "#env 1 16,20,8,10\n#env 2 1,2,3,4\n#env 3 5,6,7,8\n"
+                            "#assign A SSGS 0\n#assign B OPL2EX1 0\n"
+                            "A @E1C4@E0C4\nB @E3C4\n",
+                            out, diag),
+                "tracks with @E compile");
+    const std::vector<std::uint8_t> tracks = {
+        0x59, 0x38, 0x53, 0x51, 0x01, 0x4D, 0x00,
+        0x00, 0x0C, 0x00, 0x00, 0x00, 0x00,              // track 0, SSGS, channel 0
+        0xB2, 0x01, 0x00, 0x30, 0xB2, 0x00, 0x00, 0x30, 0xFF,
+        0x00, 0x08, 0x00, 0x01, 0x03, 0x00,              // track 1, OPL2EX1, channel 0
+        0x85, 0x00, 0x00, 0x30, 0xFF};
+    // Then B's default voice, then chunk 04 for envelope 1 alone.
+    test::check(out.sequence.size() == tracks.size() + 3 + 33 + 8,
+                "one voice chunk and one envelope chunk");
+    test::checkBytes("the tracks", head(out.sequence, tracks.size()), tracks);
+    test::checkBytes("chunk 04",
+                     std::vector<std::uint8_t>(out.sequence.end() - 8, out.sequence.end()),
+                     bytes({0x04, 0x05, 0x00, 0x01, 0x10, 0x14, 0x08, 0x0A}));
+}
+
 void pcmFile() {
     const std::string json =
         "{\n"
@@ -194,6 +219,7 @@ int main() {
     emptyTrackIsWritten();
     voiceChunks();
     rhythmVoices();
+    envelopeChunks();
     pcmFile();
     return test::report("block_test");
 }

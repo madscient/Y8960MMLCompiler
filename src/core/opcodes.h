@@ -49,6 +49,7 @@ enum Op : std::uint8_t {
     // PSG family only
     OpSsgShape = 0xB0,
     OpSsgPan = 0xB1,
+    OpSoftEnv = 0xB2,    // the software envelope's number, 0 for none
     OpSsgPeriod = 0xDC,  // 16 bits
 };
 
@@ -59,7 +60,12 @@ constexpr std::uint16_t kPortaFromHere = 0x8000;
 constexpr int kTicksQuarter = 48;
 constexpr int kTicksWhole = kTicksQuarter * 4;
 constexpr int kLengthMax = 96;      // the denominator of Ln and a note's own
-constexpr int kNoteNumberMax = 96;  // Nn
+constexpr int kNoteNumberMax = 127;  // Nn
+// Nn counts from O1 C and the note number from O0 C, so C0 carries n + 12.
+constexpr int kNoteNumberBase = 12;
+constexpr int kOctaveMax = 9;
+constexpr int kEnvMax = 31;          // @En; 0 is none, 1-31 name a chunk 04
+constexpr int kEnvValues = 4;        // AR, DR, SL, RR
 constexpr int kCentMax = 1200;
 constexpr int kLoopDepth = 4;
 constexpr int kSegnoMax = 4;    // (*)0 to (*)3

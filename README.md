@@ -78,8 +78,9 @@ ADPCM を鳴らすには、[adpcm_packer](https://github.com/madscient/adpcm_pac
 #pcmbank presets/wavs_y8950_adpcmb_excerpt.json
 ```
 
-`@128`-`@191` の FM 音色と `@16`-`@31` の SCC 波形は `#voice` と `#wave` で
-作る。長い行は末尾の `\` で折り返せる。
+`@128`-`@191` の FM 音色と `@16`-`@31` の SCC 波形は `#voice` と `#wave` で、
+SSGS・SCC・DCSG のソフトウェアエンベロープ `@E1`-`@E31` は `#env` で作る。
+長い行は末尾の `\` で折り返せる。
 
 ```
 #voice 128 "Piano 1 ", \

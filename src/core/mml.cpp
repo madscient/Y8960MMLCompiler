@@ -9,7 +9,6 @@
 namespace y8 {
 namespace {
 
-constexpr int kOctaveMax = 8;
 constexpr int kQuantMax = 8;
 constexpr int kVolMax = 15;
 constexpr int kMixerMax = 127;
@@ -34,7 +33,7 @@ public:
         family_ = deviceFamily(track_.device);
     }
 
-    bool run(TrackCode& out, std::set<int>& adpcmVoiceFiles);
+    bool run(TrackCode& out, Sequence& seq);
 
 private:
     // ---- the reader -------------------------------------------------------
@@ -86,6 +85,7 @@ private:
     void cmdShape();
     void cmdPeriod();
     void cmdPan();
+    void cmdEnvelope();
     void cmdBend(std::uint8_t op);
     void cmdPorta();
     void cmdReg();
@@ -129,6 +129,7 @@ private:
 
     std::vector<std::uint8_t> bytes_;
     std::set<int>* adpcmFiles_ = nullptr;
+    std::map<int, EnvRecord>* envelopes_ = nullptr;
 
     // running compile state
     int octave_ = 4;
@@ -455,7 +456,7 @@ void TrackCompiler::cmdNoteAbs() {
     int ticks = getLen();
     if (noTime_) fail("two notes with no time between them");
     defaultVoice();
-    emit(OpNoteAbs, static_cast<std::uint8_t>(n));
+    emit(OpNoteAbs, static_cast<std::uint8_t>(n + kNoteNumberBase));
     emitLen(ticks);
     timeFlag(ticks);
 }
@@ -473,7 +474,7 @@ void TrackCompiler::cmdRest() {
 
 void TrackCompiler::cmdOctave() {
     long n = needNum();
-    if (n < 1 || n > kOctaveMax) fail("On is 1 to " + std::to_string(kOctaveMax));
+    if (n > kOctaveMax) fail("On is 0 to " + std::to_string(kOctaveMax));
     octave_ = static_cast<int>(n);
     emit(OpOctave, static_cast<std::uint8_t>(n));
 }
@@ -487,7 +488,7 @@ void TrackCompiler::cmdOctUp() {
 }
 
 void TrackCompiler::cmdOctDown() {
-    if (octave_ <= 1) return;
+    if (octave_ <= 0) return;
     --octave_;
     emit(OpOctDown);
 }
@@ -537,6 +538,23 @@ void TrackCompiler::cmdPan() {
     long n = needNum();
     if (n > 15) fail("In is 0 to 15");
     emit(OpSsgPan, static_cast<std::uint8_t>(n));
+}
+
+// Only the PSG family has a software envelope. On the others @En is read and
+// dropped here rather than written for the driver to ignore, as the ROM does:
+// a number written would drag its record into the block for nothing to play.
+void TrackCompiler::cmdEnvelope() {
+    long n = needNum();
+    if (n > kEnvMax) fail("@En is 0 to " + std::to_string(kEnvMax));
+    if (family_ != Family::Psg) return;
+    if (n != 0) {
+        auto it = src_.envelopes.find(static_cast<int>(n));
+        if (it == src_.envelopes.end()) {
+            fail("@E" + std::to_string(n) + " has no #env to define it");
+        }
+        (*envelopes_)[static_cast<int>(n)] = it->second.values;
+    }
+    emit(OpSoftEnv, static_cast<std::uint8_t>(n));
 }
 
 void TrackCompiler::cmdBend(std::uint8_t op) {
@@ -639,6 +657,11 @@ void TrackCompiler::cmdAt() {
     if (c == 'p') {
         skip();
         cmdBend(OpBendRel);
+        return;
+    }
+    if (c == 'e') {
+        skip();
+        cmdEnvelope();
         return;
     }
     voiceNumber(needNum());
@@ -796,6 +819,11 @@ void TrackCompiler::cmdRhythmAt() {
         long n = needNum();
         if (n > kRhyVolMax) fail("@An is 0 to " + std::to_string(kRhyVolMax));
         emit(OpRhythmAccentVol, static_cast<std::uint8_t>(n));
+        return;
+    }
+    if (c == 'e') {
+        skip();
+        cmdEnvelope();
         return;
     }
     fail("@ names nothing else on a rhythm track");
@@ -1039,8 +1067,9 @@ void TrackCompiler::dispatch(char c) {
     }
 }
 
-bool TrackCompiler::run(TrackCode& out, std::set<int>& adpcmVoiceFiles) {
-    adpcmFiles_ = &adpcmVoiceFiles;
+bool TrackCompiler::run(TrackCode& out, Sequence& seq) {
+    adpcmFiles_ = &seq.adpcmVoiceFiles;
+    envelopes_ = &seq.envelopes;
     views_.push_back({&track_.text, 0, false});
 
     try {
@@ -1109,7 +1138,7 @@ bool compileSequence(const SourceFile& src, Sequence& out, Diagnostics& diag) {
         }
 
         TrackCompiler compiler(src, i, out.voices, diag);
-        if (!compiler.run(code, out.adpcmVoiceFiles)) {
+        if (!compiler.run(code, out)) {
             ok = false;
             code.bytes.assign(1, OpEnd);
         }
