@@ -238,11 +238,12 @@ A @E1 V15 L2 O4 C R1
 ### `#pcmbank` ―― ADPCM のサンプルを読む
 
 ```
-#pcmbank <JSON のパス>
+#pcmbank <JSON か Y8PC のパス>
 ```
 
-[adpcm_packer](https://github.com/madscient/adpcm_packer) が出した JSON を
-指す。**同じ茎の `.bin`**（ダンプ）が同じフォルダにあることが要る。
+[adpcm_packer](https://github.com/madscient/adpcm_packer) が出した JSON か、
+Y8PC ファイル（`.PC`）を指す。JSON なら**同じ茎の `.bin`**（ダンプ）が同じ
+フォルダにあることが要る。
 
 ```
 ; drums.json と drums.bin を読む
@@ -266,6 +267,19 @@ D  L8 @0 c @1 c @2 c
 - JSON の `codec` は `adpcm-b`、`boundary` は `256` でなければエラー。
   Y8960 の ADPCM が読むのはこの形だけ
 - サンプリング周波数は JSON の `sample_rate`。**1800-16000Hz の外はエラー**
+- パスに空白は書けない
+
+**Y8PC を指したときは、Y8PC が持つ番号をそのまま使う。** Y8PC は番号ごとの
+設定を自分で持っているので、並び順で番号を付け直すことはしない。出力の
+`.PC` は読んだ Y8PC と同じになる。Y8PC にはエントリの名前が無いので、
+**`#adpcm` とは一緒に使えない。**
+
+```
+; y8mmlc が前に書き出した SONG.PC をそのまま使う
+#pcmbank SONG.PC
+#assign  D OPL2EX1 9
+D  L8 @0 c @5 c
+```
 
 ### `#adpcm` ―― 番号を名前で指定する
 

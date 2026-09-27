@@ -6,6 +6,11 @@ add_executable(block_test block_test.cpp)
 target_link_libraries(block_test PRIVATE y8mmlc_core)
 add_test(NAME block COMMAND block_test)
 
+add_executable(decompile_test decompile_test.cpp)
+target_link_libraries(decompile_test PRIVATE y8mmlc_core)
+target_compile_definitions(decompile_test PRIVATE Y8MMLC_SOURCE_DIR="${PROJECT_SOURCE_DIR}")
+add_test(NAME decompile COMMAND decompile_test)
+
 add_executable(grammar_test grammar_test.cpp)
 target_link_libraries(grammar_test PRIVATE y8mmlc_core)
 target_compile_definitions(grammar_test PRIVATE
@@ -16,8 +21,9 @@ add_test(NAME grammar COMMAND grammar_test)
 # Windows is its manifest, which only the real executable carries.
 if(TARGET y8mmlc)
     add_executable(cli_test cli_test.cpp)
-    target_compile_definitions(cli_test PRIVATE Y8MMLC_EXE="$<TARGET_FILE:y8mmlc>")
-    add_dependencies(cli_test y8mmlc)
+    target_compile_definitions(cli_test PRIVATE Y8MMLC_EXE="$<TARGET_FILE:y8mmlc>"
+        Y8MMLD_EXE="$<TARGET_FILE:y8mmld>" Y8MMLC_SOURCE_DIR="${PROJECT_SOURCE_DIR}")
+    add_dependencies(cli_test y8mmlc y8mmld)
     add_test(NAME cli COMMAND cli_test)
 endif()
 

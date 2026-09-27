@@ -4,6 +4,7 @@
 add_library(y8mmlc_core STATIC
     adpcm.cpp
     compile.cpp
+    decompile.cpp
     device.cpp
     diag.cpp
     json.cpp

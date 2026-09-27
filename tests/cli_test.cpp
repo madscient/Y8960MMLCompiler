@@ -1,6 +1,6 @@
-// Runs the y8mmlc executable itself on sources whose names and contents are
-// not ASCII. What makes those work on Windows is the executable's manifest,
-// which a test that calls the core library in-process would never see.
+// Runs the y8mmlc and y8mmld executables themselves on files whose names and
+// contents are not ASCII. What makes those work on Windows is the executables'
+// manifest, which a test that calls the core library in-process would never see.
 
 #include <cstdlib>
 #include <filesystem>
@@ -42,12 +42,12 @@ struct Run {
     std::string err;
 };
 
-// Runs y8mmlc with one argument, the way a shell would hand it over: as text,
-// not as bytes in some code page.
-Run run(const fs::path& dir, const std::string& arg) {
+// Runs an executable with arguments already quoted, the way a shell would hand
+// them over: as text, not as bytes in some code page.
+Run runExe(const fs::path& dir, const char* exe, const std::string& args) {
     const fs::path outFile = dir / "stdout.txt";
     const fs::path errFile = dir / "stderr.txt";
-    std::string cmd = "\"" + std::string(Y8MMLC_EXE) + "\" \"" + arg + "\" > \"" + utf8(outFile) +
+    std::string cmd = "\"" + std::string(exe) + "\" " + args + " > \"" + utf8(outFile) +
                       "\" 2> \"" + utf8(errFile) + "\"";
     Run r;
 #ifdef _WIN32
@@ -66,8 +66,36 @@ Run run(const fs::path& dir, const std::string& arg) {
     return r;
 }
 
+std::string quote(const std::string& s) { return "\"" + s + "\""; }
+
+Run run(const fs::path& dir, const std::string& arg) { return runExe(dir, Y8MMLC_EXE, quote(arg)); }
+
 bool has(const std::string& text, const std::string& piece) {
     return text.find(piece) != std::string::npos;
+}
+
+// y8mmld: it will not write over a file unless told to, and it finds the Y8PC
+// y8mmlc wrote beside the sequence - in a folder whose name is not ASCII too.
+void decompiler(const fs::path& base) {
+    const fs::path dir = base / u8("逆");
+    fs::create_directories(dir);
+    writeFile(dir / "a.mml", "#assign A SSGS 0\nA C4\n");
+    runExe(dir, Y8MMLC_EXE, quote(utf8(dir / "a.mml")) + " -o X");
+    writeFile(dir / "X.mml", "kept\n");
+    Run refused = runExe(dir, Y8MMLD_EXE, quote(utf8(dir / "X.SQ")));
+    test::check(refused.exit == 1 && readFile(dir / "X.mml") == "kept\n",
+                "y8mmld does not write over a file that is there: " + refused.err);
+    Run forced = runExe(dir, Y8MMLD_EXE, quote(utf8(dir / "X.SQ")) + " --force");
+    test::check(forced.exit == 0 && has(readFile(dir / "X.mml"), "#assign A SSGS 0"),
+                "--force writes over it: " + forced.err);
+
+    const std::string bank =
+        (fs::u8path(Y8MMLC_SOURCE_DIR) / "presets" / "wavs_y8950_adpcmb_excerpt.json").generic_u8string();
+    writeFile(dir / "psrc.mml", "#pcmbank " + bank + "\n#assign A OPL2EX1 9\nA @3 c\n");
+    runExe(dir, Y8MMLC_EXE, quote(utf8(dir / "psrc.mml")) + " -o P");
+    Run adpcm = runExe(dir, Y8MMLD_EXE, quote(utf8(dir / "P.SQ")));
+    test::check(adpcm.exit == 0 && has(readFile(dir / "P.mml"), "#pcmbank P.PC\n"),
+                "y8mmld takes the Y8PC beside the sequence: " + adpcm.err);
 }
 
 } // namespace
@@ -107,6 +135,8 @@ int main() {
     test::check(has(song.err, "warning"), "replacing a character is warned about: " + song.err);
     test::check(has(song.out, utf8(base / u8("_1.SQ")) + " ("),
                 "the written file is named on stdout: " + song.out);
+
+    decompiler(base);
 
     fs::remove_all(base);
     return test::report("cli_test");

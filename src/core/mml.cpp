@@ -601,36 +601,8 @@ void TrackCompiler::cmdReg() {
         if (mask > 255) fail("a register mask is 0 to 255");
     }
 
-    // The registers each chip has, as basic-reference.md lists them. The ROM's
-    // own compiler takes any number and leaves the refusal to the driver at play
-    // time, where it is silent; here it is an error, as that document says.
-    const Device dev = track_.device;
-    bool ok = true;
-    switch (dev) {
-        case DevSSGS:
-            ok = (reg <= 0x0D) || (reg >= 0x20 && reg <= 0x2D);
-            if (!ok) fail("the SSGS takes Y registers $00-$0D and $20-$2D");
-            break;
-        case DevOPLLEX1:
-        case DevOPLLEX2:
-            ok = (reg <= 0x07) || (reg >= 0x0E && reg <= 0x18) || (reg >= 0x20 && reg <= 0x28) ||
-                 (reg >= 0x30 && reg <= 0x38) || (reg >= 0x40 && reg <= 0x48);
-            if (!ok) fail("OPLLEX takes Y registers $00-$07, $0E-$18, $20-$28, $30-$38 and $40-$48");
-            break;
-        case DevOPL2EX1:
-        case DevOPL2EX2:
-            // 04H masks the interrupt sources. Unmasking the ADPCM ones leaves
-            // the cartridge holding the interrupt line with nothing to clear it.
-            if (reg == 0x04) fail("OPL2EX register $04 cannot be written: it masks the interrupts");
-            break;
-        case DevDCSG1:
-        case DevDCSG2:
-            if (reg > 7) fail("DCSG takes Y registers 0 to 7");
-            if (data > 15) fail("a DCSG register holds 0 to 15");
-            break;
-        default:
-            break;
-    }
+    std::string why;
+    if (!regWritable(track_.device, reg, data, why)) fail(why);
     emit(OpRegWrite, static_cast<std::uint8_t>(reg), static_cast<std::uint8_t>(data));
     emit(static_cast<std::uint8_t>(mask));
 }
@@ -1109,6 +1081,46 @@ bool TrackCompiler::run(TrackCode& out, Sequence& seq) {
 }
 
 } // namespace
+
+// The registers each chip has, as basic-reference.md lists them. The ROM's own
+// compiler takes any number and leaves the refusal to the driver at play time,
+// where it is silent; here it is an error, as that document says.
+bool regWritable(Device dev, long reg, long data, std::string& why) {
+    switch (dev) {
+        case DevSSGS:
+            if ((reg <= 0x0D) || (reg >= 0x20 && reg <= 0x2D)) return true;
+            why = "the SSGS takes Y registers $00-$0D and $20-$2D";
+            return false;
+        case DevOPLLEX1:
+        case DevOPLLEX2:
+            if ((reg <= 0x07) || (reg >= 0x0E && reg <= 0x18) || (reg >= 0x20 && reg <= 0x28) ||
+                (reg >= 0x30 && reg <= 0x38) || (reg >= 0x40 && reg <= 0x48)) {
+                return true;
+            }
+            why = "OPLLEX takes Y registers $00-$07, $0E-$18, $20-$28, $30-$38 and $40-$48";
+            return false;
+        case DevOPL2EX1:
+        case DevOPL2EX2:
+            // 04H masks the interrupt sources. Unmasking the ADPCM ones leaves
+            // the cartridge holding the interrupt line with nothing to clear it.
+            if (reg != 0x04) return true;
+            why = "OPL2EX register $04 cannot be written: it masks the interrupts";
+            return false;
+        case DevDCSG1:
+        case DevDCSG2:
+            if (reg > 7) {
+                why = "DCSG takes Y registers 0 to 7";
+                return false;
+            }
+            if (data > 15) {
+                why = "a DCSG register holds 0 to 15";
+                return false;
+            }
+            return true;
+        default:
+            return true;
+    }
+}
 
 bool compileSequence(const SourceFile& src, Sequence& out, Diagnostics& diag) {
     bool ok = true;

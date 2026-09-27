@@ -13,7 +13,7 @@ namespace {
 bool build(SourceFile& src, CompileResult& out, Diagnostics& diag) {
     AdpcmData adpcm;
     bool adpcmOk = true;
-    if (!src.pcmBankJson.empty()) {
+    if (!src.pcmBankPath.empty()) {
         adpcmOk = readAdpcm(src, adpcm, diag);
     }
 
@@ -22,7 +22,7 @@ bool build(SourceFile& src, CompileResult& out, Diagnostics& diag) {
 
     // A track that sounds a voice file nothing bound is a key-on with no sample
     // behind it, which is silence on the machine and a typo here.
-    if (!src.pcmBankJson.empty() && adpcmOk) {
+    if (!src.pcmBankPath.empty() && adpcmOk) {
         for (int number : seq.adpcmVoiceFiles) {
             bool bound = false;
             for (const VoiceFile& f : adpcm.files) {
@@ -38,7 +38,7 @@ bool build(SourceFile& src, CompileResult& out, Diagnostics& diag) {
                 adpcmOk = false;
             }
         }
-    } else if (src.pcmBankJson.empty() && !seq.adpcmVoiceFiles.empty()) {
+    } else if (src.pcmBankPath.empty() && !seq.adpcmVoiceFiles.empty()) {
         diag.error(src.path, 0, 0,
                    "an ADPCM track sounds voice files but there is no #pcmbank");
         adpcmOk = false;
@@ -47,7 +47,7 @@ bool build(SourceFile& src, CompileResult& out, Diagnostics& diag) {
     if (!seqOk || !adpcmOk) return false;
 
     out.sequence = writeBlock(seq, adpcm);
-    if (!src.pcmBankJson.empty()) {
+    if (!src.pcmBankPath.empty()) {
         out.pcm = writePcmFile(adpcm);
         out.hasPcm = true;
     }

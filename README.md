@@ -69,6 +69,37 @@ ADPCM を鳴らすには、[adpcm_packer](https://github.com/madscient/adpcm_pac
 #adpcm   10 bassdrum
 ```
 
+`y8mmlc` が書き出した `.PC` も `#pcmbank` で読める。そのときは `.PC` が持つ番号が
+そのまま使われる。
+
+### シーケンスデータから MML に戻す
+
+```
+y8mmld <シーケンスデータ> [-o <ファイル名>] [--out-dir <フォルダ>] [--pcm <Y8PC>] [--force]
+```
+
+```sh
+y8mmld SONG.SQ
+#  -> SONG.mml
+```
+
+`.SQ` を、同じ鳴り方をする MML ソースに戻す。
+
+- **元の書き方には戻らない。** マクロ・`L`・連符・コメントはシーケンスデータに
+  残らないので、音符ごとに長さを書いた MML になる。音色と波形は `#voice` と
+  `#wave` の定義として書き出され、`@128` と `@16` から順に番号が付く
+- **MML の長さで書けない音符は、タイと休符に分けて書く。** `Q` で音を切っている
+  音符は、鳴っている部分を `Q8` のタイでつなぎ、残りを休符にする。鳴り方は
+  変わらない
+- 書けないものがあれば警告を出し、そこを省く（時間を取るものは休符にする）。
+  1 tick の音符は 2 tick にして、次の音から 1 tick 引く
+- 戻した MML を `y8mmlc` に通し、それをまた `y8mmld` に通すと、同じ MML になる
+- **ADPCM を鳴らすシーケンスデータには Y8PC が要る。** 同じ名前の `.PC` が隣に
+  あればそれを使い、MML に `#pcmbank SONG.PC` と書く。別の場所にあるなら
+  `--pcm` で指す
+- **書き出す先に同じ名前のファイルがあれば、何も書かずに止まる。** 手で書いた
+  `song.mml` を消さないため。上書きするときは `--force` を付ける
+
 ### ADPCM プリセット
 
 `presets/` に ADPCM のサンプル 36 本を収めたバンクがある。そのまま
@@ -101,7 +132,7 @@ cd build && ctest -C Release --output-on-failure
 
 | オプション | 既定 | |
 |---|---|---|
-| `Y8MMLC_BUILD_CLI` | ON | `y8mmlc` を作る |
+| `Y8MMLC_BUILD_CLI` | ON | `y8mmlc` と `y8mmld` を作る |
 | `Y8MMLC_BUILD_TESTS` | ON | 試験を作る |
 
 ## ドキュメント

@@ -5,7 +5,7 @@ set(CMAKE_CXX_STANDARD 17)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 set(CMAKE_CXX_EXTENSIONS OFF)
 
-option(Y8MMLC_BUILD_CLI   "Build the y8mmlc command" ON)
+option(Y8MMLC_BUILD_CLI   "Build the y8mmlc and y8mmld commands" ON)
 option(Y8MMLC_BUILD_TESTS "Build the tests" ON)
 
 set(CMAKE_RUNTIME_OUTPUT_DIRECTORY "${CMAKE_BINARY_DIR}/bin/$<CONFIG>")

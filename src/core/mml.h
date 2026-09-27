@@ -4,6 +4,7 @@
 #include <cstdint>
 #include <map>
 #include <set>
+#include <string>
 #include <vector>
 
 #include "device.h"
@@ -33,5 +34,9 @@ struct Sequence {
 // Compiles every assigned track of `src`. Tracks are taken in order A to P, so
 // the voice slots come out the same for the same source.
 bool compileSequence(const SourceFile& src, Sequence& out, Diagnostics& diag);
+
+// Whether Y may write `data` to register `reg` of `dev`; `why` says why not.
+// y8mmld asks the same question before it writes a Y.
+bool regWritable(Device dev, long reg, long data, std::string& why);
 
 } // namespace y8

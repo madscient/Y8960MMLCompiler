@@ -206,15 +206,15 @@ void doDefine(const Context& ctx) {
 void doPcmBank(const Context& ctx) {
     std::vector<Word> w = split(ctx.line.text, 1);
     if (w.size() != 2) {
-        ctx.error(0, "#pcmbank takes the path of one adpcm_packer JSON file");
+        ctx.error(0, "#pcmbank takes the path of one adpcm_packer JSON file or one Y8PC file");
         return;
     }
-    if (!ctx.src.pcmBankJson.empty()) {
+    if (!ctx.src.pcmBankPath.empty()) {
         ctx.error(0,
                   "#pcmbank is already given (line " + std::to_string(ctx.src.pcmBankLine) + ")");
         return;
     }
-    ctx.src.pcmBankJson = w[1].text;
+    ctx.src.pcmBankPath = w[1].text;
     ctx.src.pcmBankLine = ctx.line.segments.front().line;
 }
 
@@ -519,7 +519,7 @@ bool readSourceText(const std::string& path, const std::string& text, SourceFile
     }
 
     // #adpcm needs a #pcmbank to name entries in.
-    if (out.pcmBankJson.empty() && !out.samples.empty()) {
+    if (out.pcmBankPath.empty() && !out.samples.empty()) {
         diag.error(path, out.samples.front().line, 1, "#adpcm needs a #pcmbank before it");
     } else {
         for (const SampleBinding& s : out.samples) {

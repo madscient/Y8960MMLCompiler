@@ -74,7 +74,7 @@ struct SourceFile {
     std::map<int, RecordDef> userWaves;
     std::map<int, EnvDef> envelopes;  // #env, 1-31
 
-    std::string pcmBankJson;  // empty when the source has no #pcmbank
+    std::string pcmBankPath;  // empty when the source has no #pcmbank
     int pcmBankLine = 0;
     std::vector<SampleBinding> samples;
 };

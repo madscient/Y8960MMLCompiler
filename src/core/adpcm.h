@@ -29,10 +29,17 @@ struct AdpcmData {
     std::vector<std::uint8_t> dump;    // the sample memory from page 0
 };
 
-// Reads the adpcm_packer JSON `src.pcmBankJson` names and the .bin beside it.
-// The entries take voice file numbers 0 upwards in the order they are packed;
-// an #adpcm binding overrides one of those numbers. Paths are taken relative to
-// the MML source.
+// Reads what `src.pcmBankPath` names, relative to the MML source. That is
+// either an adpcm_packer JSON with the .bin beside it, or a Y8PC file.
+//
+// A JSON's entries take voice file numbers 0 upwards in the order they are
+// packed, and an #adpcm binding overrides one of those numbers. A Y8PC already
+// numbers its voice files, and they are taken as they stand: that is what lets
+// y8mmld hand a Y8PC back to the compiler and get the same file out.
 bool readAdpcm(const SourceFile& src, AdpcmData& out, Diagnostics& diag);
+
+// The Y8PC of pcmfile.md. `error` says what is wrong when it returns false.
+bool isPcmFile(const std::string& bytes);
+bool parsePcmFile(const std::string& bytes, AdpcmData& out, std::string& error);
 
 } // namespace y8

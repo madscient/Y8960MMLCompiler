@@ -43,14 +43,83 @@ bool readFile(const std::string& path, std::string& out) {
     return true;
 }
 
+unsigned word(const std::string& b, std::size_t at) {
+    return static_cast<unsigned char>(b[at]) | (static_cast<unsigned char>(b[at + 1]) << 8);
+}
+
+constexpr std::size_t kPcmHeaderSize = 9;
+constexpr std::size_t kPcmSettingSize = 7;
+
 } // namespace
 
+bool isPcmFile(const std::string& bytes) { return bytes.compare(0, 4, "Y8PC") == 0; }
+
+bool parsePcmFile(const std::string& b, AdpcmData& out, std::string& error) {
+    if (b.size() < kPcmHeaderSize || !isPcmFile(b)) {
+        error = "this is not a Y8PC file";
+        return false;
+    }
+    if (static_cast<unsigned char>(b[4]) != 1) {
+        error = "this Y8PC is version " + std::to_string(static_cast<unsigned char>(b[4])) +
+                "; version 1 is the one read here";
+        return false;
+    }
+    const std::size_t count = static_cast<unsigned char>(b[6]);
+    const std::size_t pages = word(b, 7);
+    if (count > static_cast<std::size_t>(kPcmVoiceMax) ||
+        pages > static_cast<std::size_t>(kPcmPagesMax)) {
+        error = "this Y8PC holds more than the sample memory has room for";
+        return false;
+    }
+    if (b.size() != kPcmHeaderSize + count * kPcmSettingSize + pages * kPcmPageSize) {
+        error = "this Y8PC is " + std::to_string(b.size()) + " bytes, which its header does not add up to";
+        return false;
+    }
+
+    // A number given twice keeps the later one, as the ROM's reader does.
+    std::map<int, VoiceFile> byNumber;
+    for (std::size_t i = 0; i < count; ++i) {
+        const std::size_t at = kPcmHeaderSize + i * kPcmSettingSize;
+        VoiceFile f;
+        f.number = static_cast<unsigned char>(b[at]);
+        f.startPage = static_cast<int>(word(b, at + 1));
+        f.pageCount = static_cast<int>(word(b, at + 3));
+        f.sampleRate = static_cast<int>(word(b, at + 5));
+        if (f.number >= kPcmVoiceMax || f.pageCount < 1 ||
+            f.startPage + f.pageCount > kPcmPagesMax || f.sampleRate < kPcmRateMin ||
+            f.sampleRate > kPcmRateMax) {
+            error = "setting " + std::to_string(i) + " of this Y8PC is out of range";
+            return false;
+        }
+        byNumber[f.number] = f;
+    }
+    out.files.clear();
+    for (const auto& item : byNumber) out.files.push_back(item.second);
+    const std::size_t dumpAt = kPcmHeaderSize + count * kPcmSettingSize;
+    out.dump.assign(b.begin() + static_cast<std::ptrdiff_t>(dumpAt), b.end());
+    return true;
+}
+
 bool readAdpcm(const SourceFile& src, AdpcmData& out, Diagnostics& diag) {
-    const std::string jsonPath = resolve(src.path, src.pcmBankJson);
+    const std::string jsonPath = resolve(src.path, src.pcmBankPath);
     std::string jsonText;
     if (!readFile(jsonPath, jsonText)) {
         diag.error(src.path, src.pcmBankLine, 1, "cannot open '" + jsonPath + "'");
         return false;
+    }
+
+    if (isPcmFile(jsonText)) {
+        std::string error;
+        if (!parsePcmFile(jsonText, out, error)) {
+            diag.error(src.path, src.pcmBankLine, 1, "'" + jsonPath + "': " + error);
+            return false;
+        }
+        if (!src.samples.empty()) {
+            diag.error(src.path, src.samples.front().line, 1,
+                       "#adpcm names an entry of an adpcm_packer bank; a Y8PC has no names");
+            return false;
+        }
+        return true;
     }
 
     JsonValue root;
