@@ -95,6 +95,7 @@ private:
     void cmdRhythmInstruments(char c);
     void cmdRhythmVolume();
     void cmdRhythmAt();
+    void cmdWait();
 
     void cmdLoopStart();
     void cmdLoopEnd();
@@ -607,6 +608,14 @@ void TrackCompiler::cmdReg() {
     emit(static_cast<std::uint8_t>(mask));
 }
 
+void TrackCompiler::cmdWait() {
+    int ticks = getLen();
+    if (ticks == 0) fail("@W0 waits for nothing");
+    emit(OpWait);
+    emitLen(ticks);
+    timeFlag(ticks);
+}
+
 void TrackCompiler::cmdAt() {
     char c;
     if (!peek(c)) fail("@ has nothing after it");
@@ -619,11 +628,7 @@ void TrackCompiler::cmdAt() {
     }
     if (c == 'w') {
         skip();
-        int ticks = getLen();
-        if (ticks == 0) fail("@W0 waits for nothing");
-        emit(OpWait);
-        emitLen(ticks);
-        timeFlag(ticks);
+        cmdWait();
         return;
     }
     if (c == 'p') {
@@ -761,6 +766,9 @@ void TrackCompiler::cmdRhythmInstruments(char first) {
         c = a;
     }
     int ticks = getLen();
+    // A strike takes every instrument down before it puts its own up, so a
+    // second one on the same tick would cut the first off where it began.
+    if (noTime_) fail("two strikes with no time between them");
     if (accent_ != accent) {
         accent_ = accent;
         emit(OpRhythmAccent, accent);
@@ -796,6 +804,21 @@ void TrackCompiler::cmdRhythmAt() {
     if (c == 'e') {
         skip();
         cmdEnvelope();
+        return;
+    }
+    if (c == 'w') {
+        skip();
+        cmdWait();
+        return;
+    }
+    if (std::uint8_t bit = rhythmBit(c)) {
+        skip();
+        long n = needNum();
+        if (n > kRhyVolMax) {
+            fail(std::string("@") + static_cast<char>(std::toupper(c)) + "n is 0 to " +
+                 std::to_string(kRhyVolMax));
+        }
+        emit(OpRhythmInstVol, bit, static_cast<std::uint8_t>(n));
         return;
     }
     fail("@ names nothing else on a rhythm track");

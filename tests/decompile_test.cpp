@@ -236,7 +236,8 @@ void compilerOutputComesBack() {
          "#assign C OPLLEX2 0\nA @e2 c @e0 d @e9 e\nB @2 c @e9 d\nC @e2 c\n"},
         {"rhythm",
          "#assign A OPL2EX1 10\nA v12 @a9 @v64 bs!h8 h8 s!8 |: b8 [1 m!c ] [2 c!4 ] :|2 r4 b0 r8\n"
-         "#assign B OPLLEX2 10\nB bsmch16 (*)2 b!s!m!c!h!4 (ds)2\n"},
+         "#assign B OPLLEX2 10\nB bsmch16 (*)2 b!s!m!c!h!4 (ds)2\n"
+         "#assign C OPL2EX2 10\nC @b3 @s5 @m7 @c9 @h11 v10 @s2 b0 y14,32 @w8 h8 m0 r16 c0 @w16\n"},
         {"N with a length of 0", "#define Z 0\n#assign A SSGS 0\nA n40=Z; @w4 r4 l8 n41 n42=Z; @w8 r0\n"},
         {"a track with nothing in it", "#assign C SCC 4\n#assign P DCSG2 3\nP c\n"},
     };
@@ -275,6 +276,12 @@ void lengthsAreSplit() {
                                                         0x00, 0xC8, 0x01, 0x29, 0x0E, 0x21,
                                                         0xFF})));
     sameSound("rhythm lengths", r);
+
+    // One D8 that sets several instruments comes back as one @ for each.
+    Trip levels = trip("a level for three instruments",
+                       block(1, 10, bytes({0xD8, 0x15, 0x05, 0xC8, 0x10, 0x30, 0xFF})));
+    test::check(levels.mml1.find("@b5 @m5 @h5") != std::string::npos,
+                "D8 with three bits comes back as @b @m @h\n" + levels.mml1);
 }
 
 // One tick has no way to be written: it becomes two, taken back from what

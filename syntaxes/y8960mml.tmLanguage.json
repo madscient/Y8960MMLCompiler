@@ -99,7 +99,7 @@
         { "match": "\\d+", "name": "constant.numeric.decimal.y8960mml" },
         { "match": "(?i)[a-g][+#-]?", "name": "keyword.other.note.y8960mml" },
         { "match": "(?i)r", "name": "keyword.other.rest.y8960mml" },
-        { "match": "(?i)@[vwpae]?|[lLoOtTqQvVsSmMnNiIpPyY~&]", "name": "support.function.command.y8960mml" },
+        { "match": "(?i)@[vwpaebsmch]?|[lLoOtTqQvVsSmMnNiIpPyY~&]", "name": "support.function.command.y8960mml" },
         { "match": "[<>]", "name": "keyword.operator.octave.y8960mml" },
         { "match": "[{}]", "name": "punctuation.section.tuplet.y8960mml" },
         { "match": "\\.", "name": "keyword.operator.dot.y8960mml" },

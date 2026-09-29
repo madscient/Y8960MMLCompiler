@@ -253,6 +253,27 @@ void rhythmTrack() {
     test::check(refused("OPL2EX1 10", "A4"), "a letter naming no instrument is refused");
     test::check(refused("OPL2EX1 10", "L8B8"), "a rhythm track has no L");
     test::check(refused("SSGS 0", "B!8"), "'!' means nothing off a rhythm track");
+
+    // ROM: a strike of length 0, then @W1 - a whole note in the long form.
+    test::checkBytes("T60B0@W1H1", track("OPLLEX1 10", "T60B0@W1H1"),
+                     bytes({0x84, 0x3C, 0xA8, 0x00, 0xC8, 0x10, 0x00, 0x0E, 0x80, 0xC0, 0xC8,
+                            0x01, 0x80, 0xC0, 0xFF}));
+    // ROM: two strikes on one tick are refused, and R0 and @W0 do not part them.
+    test::check(refused("OPLLEX1 10", "B0H1"), "two strikes on one tick are refused");
+    test::check(refused("OPLLEX1 10", "B0R0H1"), "R0 does not part two strikes");
+    test::check(refused("OPLLEX1 10", "B0@W0H1"), "@W0 is refused on a rhythm track");
+    test::check(!refused("OPLLEX1 10", "B0R1H1"), "a rest with a length parts two strikes");
+
+    // One instrument's plain level: D8, the instrument's bit, the level.
+    test::checkBytes("@B3@S5@M7@C9@H11", track("OPLLEX1 10", "@B3@S5@M7@C9@H11V10@s2"),
+                     bytes({0xD8, 0x10, 0x03, 0xD8, 0x08, 0x05, 0xD8, 0x04, 0x07, 0xD8, 0x02,
+                            0x09, 0xD8, 0x01, 0x0B, 0xA9, 0x0A, 0xD8, 0x08, 0x02, 0xFF}));
+    // ROM: past 15, no number and a letter naming no instrument are refused.
+    test::check(!refused("OPLLEX1 10", "@B15@S0B4"), "@B15 and @S0 are taken");
+    test::check(!refused("OPLLEX1 10", "B0@W8H8"), "@W takes time on a rhythm track");
+    test::check(refused("OPLLEX1 10", "@B16B4"), "@B16 is refused");
+    test::check(refused("OPLLEX1 10", "@SB4"), "@S with no number is refused");
+    test::check(refused("OPLLEX1 10", "@X3B4"), "@X names no instrument");
 }
 
 void adpcmTrack() {

@@ -576,11 +576,25 @@ void TrackWriter::rhythm(std::size_t i) {
             }
             put((e.op == OpRhythmVolume ? "v" : "@a") + std::to_string(e.arg[0]));
             return;
-        case OpWait:
-            // A rhythm channel has no @W. A rest is the same there: key off
-            // touches nothing on the rhythm channel.
-            rest(e, e.len);
+        case OpWait: wait(e, e.len); return;
+        case OpRhythmInstVol: {
+            const std::uint8_t bits = e.arg[0] & 0x1F;  // bit7-5 mean nothing
+            if (bits == 0) return;                       // sets no instrument
+            if (e.arg[1] > 15) {
+                warn(e, "a rhythm volume past 15 is left out");
+                return;
+            }
+            // One @ per instrument: MML names them one at a time.
+            static const struct {
+                std::uint8_t bit;
+                const char* name;
+            } kLevels[] = {{kRhythmBass, "@b"}, {kRhythmSnare, "@s"}, {kRhythmTom, "@m"},
+                           {kRhythmCymbal, "@c"}, {kRhythmHiHat, "@h"}};
+            for (const auto& k : kLevels) {
+                if (bits & k.bit) put(k.name + std::to_string(e.arg[1]));
+            }
             return;
+        }
         case OpSoftEnv:
             return;
         default:
@@ -707,7 +721,9 @@ void TrackWriter::hit(const Event& e, int ticks) {
     ticks = settle(e, ticks);
     std::vector<int> ps = lengths().pieces(ticks);
     put(t + lengths().text(ps[0]));
-    for (std::size_t k = 1; k < ps.size(); ++k) put("r" + lengths().text(ps[k]));
+    // The rest of a long strike is waited out: @W touches no key, as C8's own
+    // length does not.
+    for (std::size_t k = 1; k < ps.size(); ++k) put("@w" + lengths().text(ps[k]));
 }
 
 // 82: a number the chip resolves by itself.
