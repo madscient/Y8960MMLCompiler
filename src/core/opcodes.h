@@ -27,6 +27,7 @@ enum Op : std::uint8_t {
     OpTempo = 0x84,
     OpSeqVoice = 0x85,  // the slot in this sequence's own voice set
     OpSegno = 0x86,     // a mark with its number; nothing plays it
+    OpPan = 0x87,       // 0-15; of the devices here only the SSGS has one
     OpNoteAbs = 0xC0,   // note number, then a length
     OpBend = 0xD0,
     OpBendRel = 0xD1,
@@ -49,8 +50,8 @@ enum Op : std::uint8_t {
 
     // PSG family only
     OpSsgShape = 0xB0,
-    OpSsgPan = 0xB1,
     OpSoftEnv = 0xB2,    // the software envelope's number, 0 for none
+    OpSccVolTable = 0xB3,  // 1: the SCC turns a level through its table, 0: not
     OpSsgPeriod = 0xDC,  // 16 bits
 };
 

@@ -99,5 +99,14 @@ int main() {
     for (int i = 0; i < kDeviceCount; ++i) symbols.emplace_back(deviceSymbol(static_cast<Device>(i)));
     sameSet("device symbols", lowerSet(devNames), lowerSet(symbols));
 
+    std::string fmt;
+    const JsonValue* fmtRule = repo->member("voice-format");
+    const JsonValue* fmtMatch = fmtRule ? fmtRule->member("match") : nullptr;
+    std::vector<std::string> fmtNames;
+    test::check(fmtMatch && fmtMatch->asString(fmt) &&
+                    alternatives(fmt, "\\b(?:", ")\\b", fmtNames),
+                "the voice-format rule keeps its (?:...) group");
+    sameSet("#voice formats", lowerSet(fmtNames), lowerSet(voiceFormatNames()));
+
     return test::report("grammar_test");
 }

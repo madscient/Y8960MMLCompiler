@@ -18,8 +18,10 @@ constexpr std::uint8_t kChunkVoice = 0x01;
 constexpr std::uint8_t kChunkWave = 0x02;
 constexpr std::uint8_t kChunkVoiceFile = 0x03;
 constexpr std::uint8_t kChunkEnvelope = 0x04;
+constexpr std::uint8_t kChunkDeviceOwned = 0x40;  // 40-7F: the body's first byte names a device
 constexpr std::uint8_t kChunkSkippable = 0x80;
 constexpr int kSlotIndexLimit = 35;  // 0-31 the set, 32-34 OPL2EX's rhythm voices
+constexpr int kOpllBanked = 64;      // @65-@127 is 82 with @n less this
 
 // Where the records of the voice set land in the source. #voice has 64 numbers
 // and the set 32 slots, so every FM record fits; #wave has 16.
@@ -165,7 +167,8 @@ struct TrackChunk {
 
 struct Slot {
     bool present = false;
-    VoiceRecord record{};
+    bool isWave = false;   // chunk 02 rather than chunk 01
+    VoiceRecord record{};  // a voice's 12 bytes lead, as chunk 01 has them
 };
 
 // What the tracks share: the voice numbers they have handed out, the envelopes
@@ -524,7 +527,7 @@ void TrackWriter::melody(std::size_t i) {
             return;
         }
         case OpSsgShape:
-        case OpSsgPan:
+        case OpPan:
             if (e.arg[0] > 15) {
                 warn(e, "a value past 15 is left out");
                 return;
@@ -548,6 +551,17 @@ void TrackWriter::melody(std::size_t i) {
             }
             if (n != 0) shared_.envUsed.insert(n);
             put("@e" + std::to_string(n));
+            return;
+        }
+        case OpSccVolTable: {
+            // Off the SCC the player ignores it, and so does the compiler.
+            if (chunk_.device != DevSCC) return;
+            int n = e.arg[0];
+            if (n > 1) {
+                warn(e, "a volume table switch of " + std::to_string(n) + " plays as 0 and is written so");
+                n = 0;
+            }
+            put("@g" + std::to_string(n));
             return;
         }
         case OpRhythmAccent:
@@ -740,13 +754,16 @@ void TrackWriter::voice(const Event& e) {
         return;
     }
     if (family_ == Family::Fm) {
-        // 0-63 comes back as the preset of that number, which the compiler
-        // then carries as a record.
-        if (n == 64 || n > 127) {
-            warn(e, "FM voice number " + std::to_string(n) + " names nothing @n can and is left out");
+        // OPLLEX reads bank and preset from bits 5-4 and 3-0, and OPL2EX reads
+        // nothing. Preset 0 of a bank is the chip's user voice, which @n cannot
+        // name.
+        const int preset = n & 0x3F;
+        if (preset == 0) {
+            warn(e, "FM voice number " + std::to_string(n) +
+                        " names the user voice, which @n cannot, and is left out");
             return;
         }
-        put("@" + std::to_string(n));
+        put("@" + std::to_string(kOpllBanked + preset));
         return;
     }
     if (chunk_.device == DevSCC && n >= kPresetWaveCount && n < kUserWaveBase + kUserWaveCount) {
@@ -766,7 +783,18 @@ void TrackWriter::seqVoice(const Event& e) {
         warn(e, "voice slot " + std::to_string(slot) + " has no record in the block and is left out");
         return;
     }
-    const VoiceRecord& record = shared_.slots[static_cast<std::size_t>(slot)].record;
+    const Slot& held = shared_.slots[static_cast<std::size_t>(slot)];
+    const VoiceRecord& record = held.record;
+
+    const bool wantsWave = chunk_.device == DevSCC;
+    if ((family_ == Family::Fm && dialect_ != Dialect::Adpcm) || wantsWave) {
+        if (held.isWave != wantsWave) {
+            warn(e, "voice slot " + std::to_string(slot) + " holds " +
+                        (held.isWave ? "a waveform" : "an FM voice") +
+                        ", which this channel cannot play, and is left out");
+            return;
+        }
+    }
 
     if (family_ == Family::Fm && dialect_ != Dialect::Adpcm) {
         auto it = shared_.voiceOfSlot.find(slot);
@@ -814,29 +842,19 @@ std::string hexByte(std::uint8_t b) {
     return std::string("$") + digits[b >> 4] + digits[b & 0x0F];
 }
 
-bool nameable(const VoiceRecord& r) {
-    for (int i = 0; i < 8; ++i) {
-        std::uint8_t c = r[static_cast<std::size_t>(i)];
-        if (c < 0x20 || c > 0x7E || c == '"' || c == '\\') return false;
-    }
-    return true;
-}
-
+// Written packed, as the chunk has it, so every bit comes back. A row for the
+// FB/CNT and transpose bytes, then one for each operator.
 void writeVoice(std::string& out, int number, const VoiceRecord& r) {
-    const std::string head = "#voice " + std::to_string(number) + " ";
+    const std::string head = std::string("#voice ") + voiceFormatSymbol(VoiceFormat::Opl) + " @" +
+                             std::to_string(number) + " ";
     const std::string indent(head.size(), ' ');
     out += head;
-    std::size_t from = 0;
-    if (nameable(r)) {
-        out += "\"" + std::string(r.begin(), r.begin() + 8) + "\"";
-        from = 8;
-    } else {
-        for (std::size_t i = 0; i < 8; ++i) out += (i ? "," : "") + hexByte(r[i]);
-        from = 8;
-    }
-    for (std::size_t row = from; row < r.size(); row += 8) {
-        out += ", \\\n" + indent;
-        for (std::size_t i = row; i < row + 8; ++i) out += (i > row ? "," : "") + hexByte(r[i]);
+    static const std::size_t kRows[] = {2, 5, 5};
+    std::size_t at = 0;
+    for (std::size_t row : kRows) {
+        if (at) out += ", \\\n" + indent;
+        for (std::size_t i = at; i < at + row; ++i) out += (i > at ? "," : "") + hexByte(r[i]);
+        at += row;
     }
     out += "\n";
 }
@@ -910,9 +928,17 @@ bool decompileBlock(const std::vector<std::uint8_t>& b, const DecompileOptions& 
             const int index = b[body];
             const int device = b[body + 1];
             const int channel = b[body + 2];
-            if (index >= kTrackCount || device >= kDeviceCount ||
-                !deviceHasChannel(static_cast<Device>(device), channel)) {
-                return fail("a track chunk names a track, device or channel that does not exist");
+            if (index >= kTrackCount) return fail("a track chunk names a track that does not exist");
+            if (device >= kDeviceCount) {
+                // Y8SQ also carries chips no Y8960 has. Their tracks are left
+                // out and the rest still plays, as the ROM's reader does.
+                diag.warning(opt.name, 0, 0,
+                             std::string("track ") + static_cast<char>('A' + index) + " is on device " +
+                                 std::to_string(device) + ", which this MML cannot write; it is left out");
+                continue;
+            }
+            if (!deviceHasChannel(static_cast<Device>(device), channel)) {
+                return fail("a track chunk names a channel its device does not have");
             }
             TrackChunk& t = tracks[static_cast<std::size_t>(index)];
             t.present = true;
@@ -921,14 +947,19 @@ bool decompileBlock(const std::vector<std::uint8_t>& b, const DecompileOptions& 
             t.bytes.assign(b.begin() + static_cast<std::ptrdiff_t>(body + 3),
                            b.begin() + static_cast<std::ptrdiff_t>(body + len));
         } else if (type == kChunkVoice || type == kChunkWave) {
-            if (len != 1 + kVoiceRecordSize || b[body] >= kSlotIndexLimit) {
-                return fail("a voice chunk is not an index and 32 bytes");
+            const bool wave = type == kChunkWave;
+            const std::size_t record = wave ? kVoiceRecordSize : kPackedVoiceSize;
+            if (len != 1 + record || b[body] >= kSlotIndexLimit) {
+                return fail(wave ? "a waveform chunk is not an index and 32 bytes"
+                                 : "a voice chunk is not an index and 12 bytes");
             }
             if (b[body] < kVoiceSlots) {
                 Slot& s = shared.slots[b[body]];
                 s.present = true;
-                std::copy(b.begin() + static_cast<std::ptrdiff_t>(body + 1),
-                          b.begin() + static_cast<std::ptrdiff_t>(body + len), s.record.begin());
+                s.isWave = wave;
+                const auto from = b.begin() + static_cast<std::ptrdiff_t>(body + 1);
+                s.record = VoiceRecord{};
+                std::copy(from, from + static_cast<std::ptrdiff_t>(record), s.record.begin());
             }
         } else if (type == kChunkVoiceFile) {
             if (len == 7) {
@@ -944,6 +975,13 @@ bool decompileBlock(const std::vector<std::uint8_t>& b, const DecompileOptions& 
             std::copy(b.begin() + static_cast<std::ptrdiff_t>(body + 1),
                       b.begin() + static_cast<std::ptrdiff_t>(body + len), env.begin());
             shared.envelopes[b[body]] = env;
+        } else if (type >= kChunkDeviceOwned && type < kChunkSkippable) {
+            // It belongs to the device its first byte names. One this MML
+            // cannot write goes with that device's tracks, left out above.
+            if (len == 0 || b[body] < kDeviceCount) {
+                return fail("chunk type " + std::to_string(type) +
+                            " is not one this reader knows for the device it names");
+            }
         } else if (type < kChunkSkippable) {
             return fail("chunk type " + std::to_string(type) + " is not one this reader knows");
         }

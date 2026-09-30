@@ -44,17 +44,22 @@ std::vector<std::uint8_t> writeBlock(const Sequence& seq, const AdpcmData& adpcm
         putChunk(out, kChunkTrack, body);
     }
 
+    // A voice is packed by the time it is in the set. A waveform goes as it is.
     const std::vector<VoiceSet::Slot>& slots = seq.voices.slots();
     for (std::size_t i = 0; i < slots.size(); ++i) {
         std::vector<std::uint8_t> body;
         body.push_back(static_cast<std::uint8_t>(i));
-        body.insert(body.end(), slots[i].record.begin(), slots[i].record.end());
+        if (slots[i].isWave) {
+            body.insert(body.end(), slots[i].record.begin(), slots[i].record.end());
+        } else {
+            body.insert(body.end(), slots[i].record.begin(), slots[i].record.begin() + kPackedVoiceSize);
+        }
         putChunk(out, slots[i].isWave ? kChunkWave : kChunkVoice, body);
     }
 
     if (seq.voices.hasRhythmVoices()) {
         for (int i = 0; i < kRhythmVoiceCount; ++i) {
-            VoiceRecord record = rhythmVoice(i);
+            PackedVoice record = rhythmVoice(i);
             std::vector<std::uint8_t> body;
             body.push_back(static_cast<std::uint8_t>(kRhythmSlotFirst + i));
             body.insert(body.end(), record.begin(), record.end());

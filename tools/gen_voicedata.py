@@ -9,8 +9,12 @@ parser.add_argument("--rom", type=pathlib.Path,
 args = parser.parse_args()
 ROM = args.rom / "src" / "tab"
 
-def parse_db(path, label, stop_labels):
-    """Collect the bytes of every `db` between `label:` and the next label."""
+def parse_db(path, label, comment_names=False):
+    """Collect the bytes of every `db` between `label:` and the next label.
+
+    A record's name is its quoted run, or with comment_names the comment line
+    above it: the rhythm voices are packed, and the packed form has no name.
+    """
     lines = path.read_text(encoding="ascii").splitlines()
     out, names, started = [], [], False
     for ln in lines:
@@ -19,9 +23,13 @@ def parse_db(path, label, stop_labels):
             if stripped.startswith(label + ":"):
                 started = True
             continue
-        m = re.match(r"^([A-Z][A-Z0-9_]*):", stripped)
-        if m and m.group(1) in stop_labels:
+        if re.match(r"^[A-Za-z_][A-Za-z0-9_]*:", stripped):
             break
+        if comment_names:
+            c = re.match(r"^;\s*(\S.*)$", stripped)
+            if c:
+                names.append(c.group(1))
+                continue
         m = re.match(r"^db\s+(.*)$", stripped, re.I)
         if not m:
             continue
@@ -40,21 +48,26 @@ def parse_db(path, label, stop_labels):
                 out.append(int(tok, 10) & 0xFF)
     return out, names
 
-voices, vnames = parse_db(ROM / "voicedat.asm", "VOICETAB", {"VOICERTM", "RHYVOI", "RHYVOI1"})
-rhythm, rnames = parse_db(ROM / "voicedat.asm", "VOICERTM", set())
-waves, _ = parse_db(ROM / "wavedat.asm", "WAVETAB", set())
+voices, vnames = parse_db(ROM / "voicedat.asm", "VOICETAB")
+rhythm, rnames = parse_db(ROM / "voicedat.asm", "VOICERTM", comment_names=True)
+waves, _ = parse_db(ROM / "wavedat.asm", "WAVETAB")
 
 assert len(voices) == 64 * 32, len(voices)
-assert len(rhythm) == 3 * 32, len(rhythm)
+assert len(rhythm) == 3 * 12 and len(rnames) == 3, (len(rhythm), rnames)
 assert len(waves) == 16 * 32, len(waves)
 
-def table(name, data, stride, comments):
+BASIC_ROWS = (8, 8, 8, 8)
+PACKED_ROWS = (2, 5, 5)  # FB/CNT and transpose, then each operator
+
+def table(name, data, rows, comments):
+    stride = sum(rows)
     lines = [f"const std::uint8_t {name}[] = {{"]
     for i in range(0, len(data), stride):
         lines.append(f"    // {i // stride:2d} {comments[i // stride]}")
-        row = data[i:i + stride]
-        for j in range(0, stride, 8):
-            lines.append("    " + " ".join(f"0x{b:02X}," for b in row[j:j + 8]))
+        at = i
+        for n in rows:
+            lines.append("    " + " ".join(f"0x{b:02X}," for b in data[at:at + n]))
+            at += n
     lines.append("};")
     return "\n".join(lines)
 
@@ -73,9 +86,9 @@ namespace {
 
 """
 
-body = table("kPresetVoices", voices, 32, vnames) + "\n\n"
-body += table("kRhythmVoices", rhythm, 32, rnames) + "\n\n"
-body += table("kPresetWaves", waves, 32, [str(i) for i in range(16)]) + "\n"
+body = table("kPresetVoices", voices, BASIC_ROWS, vnames) + "\n\n"
+body += table("kRhythmVoices", rhythm, PACKED_ROWS, rnames) + "\n\n"
+body += table("kPresetWaves", waves, BASIC_ROWS, [str(i) for i in range(16)]) + "\n"
 
 tail = """
 } // namespace
@@ -86,9 +99,9 @@ VoiceRecord presetVoice(int n) {
     return r;
 }
 
-VoiceRecord rhythmVoice(int n) {
-    VoiceRecord r{};
-    std::memcpy(r.data(), kRhythmVoices + n * kVoiceRecordSize, kVoiceRecordSize);
+PackedVoice rhythmVoice(int n) {
+    PackedVoice r{};
+    std::memcpy(r.data(), kRhythmVoices + n * kPackedVoiceSize, kPackedVoiceSize);
     return r;
 }
 

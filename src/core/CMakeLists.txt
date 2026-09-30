@@ -11,6 +11,7 @@ add_library(y8mmlc_core STATIC
     mml.cpp
     source.cpp
     voicedata.cpp
+    voicepack.cpp
     voiceset.cpp
     writer.cpp
 )

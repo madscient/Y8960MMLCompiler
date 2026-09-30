@@ -90,6 +90,18 @@ std::vector<std::uint8_t> block(int device, int channel, const std::vector<std::
     return b;
 }
 
+// `b` with one more chunk on the end.
+std::vector<std::uint8_t> withChunk(std::vector<std::uint8_t> b, int type,
+                                    const std::vector<std::uint8_t>& body) {
+    b.push_back(static_cast<std::uint8_t>(type));
+    b.push_back(static_cast<std::uint8_t>(body.size() & 0xFF));
+    b.push_back(static_cast<std::uint8_t>(body.size() >> 8));
+    b.insert(b.end(), body.begin(), body.end());
+    b[5] = static_cast<std::uint8_t>(b.size() & 0xFF);
+    b[6] = static_cast<std::uint8_t>(b.size() >> 8);
+    return b;
+}
+
 // The event stream of track `index`.
 std::vector<std::uint8_t> trackOf(const std::vector<std::uint8_t>& b, int index) {
     std::size_t at = 7;
@@ -227,10 +239,12 @@ void compilerOutputComesBack() {
          "#assign B OPLLEX1 1\nB (*) c (*) d (ds) (dc) (ds)2 e (tc) (tc)0\n"},
         {"SCC waves",
          "#wave 20 1,2,3,4,5,6,7,8,9,10,11,12,13,14,15,16,17,18,19,20,21,22,23,24,25,26,27,28,"
-         "29,30,31,32\n#assign A SCC 0\n#assign B SCC 1\nA @3 c @20 d @3 e @40 f\nB @20 c @0 d\n"},
+         "29,30,31,32\n#assign A SCC 0\n#assign B SCC 1\nA @3 c @20 d @3 e @40 f @g0 g @g1 a\n"
+         "B @20 c @0 d\n"},
         {"FM voices on two chips",
-         "#voice 150 \"Mine    \",1,2,3,4,5,6,7,8,9,10,11,12,13,14,15,16,17,18,19,20,21,22,23,24\n"
-         "#assign A OPLLEX1 0\n#assign B OPL2EX2 3\nA @70 c @3 d @150 e\nB @150 c @63 d c\n"},
+         "#voice AUDIO @150 \"Mine    \",1,2,3,4,5,6,7,8,9,10,11,12,13,14,15,16,17,18,19,20,21,22,23,24\n"
+         "#assign A OPLLEX1 0\n#assign B OPL2EX2 3\nA @70 c @3 d @150 e @127 f @80 g\n"
+         "B @150 c @63 d @65 c\n"},
         {"software envelopes",
          "#env 2 1,2,3,4\n#env 9 40,0,255,7\n#assign A DCSG1 0\n#assign B DCSG1 3\n"
          "#assign C OPLLEX2 0\nA @e2 c @e0 d @e9 e\nB @2 c @e9 d\nC @e2 c\n"},
@@ -330,6 +344,101 @@ void unsayable() {
                 "an unknown chunk below 80 is not read");
 }
 
+// Y8SQ as the ROM's commit 8fa6de3 has it: devices past 7, chunks that belong
+// to a device, 82 on FM counted from 0, and chunk 01 as 12 bytes.
+void formatEdges() {
+    DecompileOptions opt;
+    opt.name = "edges";
+    std::string mml;
+
+    // A track on OPM (device 9) and OPM's voice are left out; the SSGS track
+    // still comes back.
+    std::vector<std::uint8_t> foreign = withChunk(block(0, 0, bytes({0x00, 0x30, 0xFF})), 0x00,
+                                                  bytes({0x01, 0x09, 0x00, 0x00, 0x30, 0xFF}));
+    std::vector<std::uint8_t> opmVoice(2 + 32, 0);
+    opmVoice[0] = 0x09;
+    foreign = withChunk(foreign, 0x40, opmVoice);
+    foreign = withChunk(foreign, 0x42, std::vector<std::uint8_t>(2 + 24, 0x08));
+    {
+        Diagnostics diag;
+        test::check(decompileBlock(foreign, opt, mml, diag), "a block with an OPM track decompiles");
+        test::check(diag.all().size() == 1, "the OPM track is warned about once");
+        test::check(mml.find("#assign A SSGS 0") != std::string::npos &&
+                        mml.find("#assign B") == std::string::npos,
+                    "only the SSGS track is assigned\n" + mml);
+    }
+    {
+        Diagnostics diag;
+        std::vector<std::uint8_t> ours(2 + 32, 0);
+        ours[0] = 0x03;
+        test::check(!decompileBlock(withChunk(block(0, 0, bytes({0xFF})), 0x40, ours), opt, mml, diag),
+                    "a chunk 40 on OPL2EX is not read");
+        test::check(!decompileBlock(withChunk(block(0, 0, bytes({0xFF})), 0x41, {}), opt, mml, diag),
+                    "an empty chunk 41 is not read");
+        test::check(!decompileBlock(withChunk(block(0, 0, bytes({0xFF})), 0x01,
+                                              std::vector<std::uint8_t>(1 + 32, 0)),
+                                    opt, mml, diag),
+                    "a chunk 01 of the old 32 bytes is not read");
+    }
+
+    // 82 on OPLLEX: bits 5-4 the bank and 3-0 the preset, 7-6 ignored. The
+    // old writer's 82 41 is the same preset as 82 01.
+    Trip old = trip("an old 82 41", block(1, 0, bytes({0x82, 0x41, 0x00, 0x30, 0xFF})));
+    test::check(old.mml1.find("@65") != std::string::npos, "82 41 comes back as @65\n" + old.mml1);
+    test::checkBytes("and compiles to 82 01", trackOf(old.sq1, 0), bytes({0x82, 0x01, 0x00, 0x30, 0xFF}));
+    {
+        Diagnostics diag;
+        test::check(decompileBlock(block(1, 0, bytes({0x82, 0x10, 0x00, 0x30, 0xFF})), opt, mml, diag) &&
+                        mml.find("@80") != std::string::npos && diag.all().empty(),
+                    "82 10 is @80");
+        Diagnostics user;
+        test::check(decompileBlock(block(1, 0, bytes({0x82, 0x40, 0x00, 0x30, 0xFF})), opt, mml, user) &&
+                        user.all().size() == 1,
+                    "82 40, the user voice, is warned about");
+    }
+
+    // B1 was the SSGS pan and is gone; 87 is the pan now.
+    {
+        Diagnostics diag;
+        test::check(decompileBlock(block(0, 0, bytes({0xB1, 0x03, 0x87, 0x05, 0x00, 0x30, 0xFF})), opt,
+                                   mml, diag) &&
+                        diag.all().size() == 1 && mml.find("i5") != std::string::npos &&
+                        mml.find("i3") == std::string::npos,
+                    "B1 is left out and 87 is I\n" + mml);
+    }
+
+    // B3 past 1 plays as 0.
+    {
+        Diagnostics diag;
+        test::check(decompileBlock(block(7, 0, bytes({0xB3, 0x02, 0xFF})), opt, mml, diag) &&
+                        diag.all().size() == 1 && mml.find("@g0") != std::string::npos,
+                    "B3 02 is @G0 with a warning\n" + mml);
+    }
+
+    // A slot's chunk type has to fit the channel that names it.
+    {
+        Diagnostics diag;
+        std::vector<std::uint8_t> wave = withChunk(block(1, 0, bytes({0x85, 0x00, 0x00, 0x30, 0xFF})),
+                                                   0x02, std::vector<std::uint8_t>(1 + 32, 0));
+        test::check(decompileBlock(wave, opt, mml, diag) && diag.all().size() == 1 &&
+                        mml.find("#wave") == std::string::npos && mml.find("#voice") == std::string::npos,
+                    "an FM track naming a waveform is warned about\n" + mml);
+    }
+
+    // #voice is written packed, so bits a BASIC record has no place for come
+    // back too: WS bit2, which only OPL3 uses, and bit7-4 of FB/CNT.
+    {
+        std::vector<std::uint8_t> v(1 + 12, 0);
+        v[1] = 0xF3;
+        v[1 + 6] = 0x04;
+        Trip t = trip("a voice BASIC cannot hold",
+                      withChunk(block(3, 0, bytes({0x85, 0x00, 0x00, 0x30, 0xFF})), 0x01, v));
+        test::checkBytes("a voice BASIC cannot hold: the first block comes back", t.sq1, t.sq0);
+        test::check(t.mml1.find("#voice OPL @128 $F3,$00, \\") != std::string::npos,
+                    "the voice is written packed\n" + t.mml1);
+    }
+}
+
 // The Y8PC goes back into #pcmbank as it stands, so both files come back.
 void adpcm() {
     const fs::path dir = fs::temp_directory_path() / "y8mmld_adpcm_test";
@@ -376,6 +485,7 @@ int main() {
     lengthsAreSplit();
     oneTick();
     unsayable();
+    formatEdges();
     adpcm();
     return test::report("decompile_test");
 }

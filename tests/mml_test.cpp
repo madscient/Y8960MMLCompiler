@@ -120,9 +120,17 @@ void voices() {
     test::checkBytes("FM @1 then @2", track("OPL2EX1 0", "@1C4@2C4@1C4"),
                      bytes({0x85, 0x00, 0x00, 0x30, 0x85, 0x01, 0x00, 0x30, 0x85, 0x00, 0x00,
                             0x30, 0xFF}));
-    // OPLLEX's own presets are a number the chip resolves.
+    // OPLLEX's own presets are a number the chip resolves: @n less 64, bank in
+    // bits 5-4 and preset in bits 3-0. ROM: voicenum's @65 is 82 01.
     test::checkBytes("OPLLEX @65", track("OPLLEX1 0", "@65C4"),
-                     bytes({0x82, 0x41, 0x00, 0x30, 0xFF}));
+                     bytes({0x82, 0x01, 0x00, 0x30, 0xFF}));
+    test::checkBytes("OPLLEX @80", track("OPLLEX1 0", "@80C4"),
+                     bytes({0x82, 0x10, 0x00, 0x30, 0xFF}));
+    test::checkBytes("OPLLEX @127", track("OPLLEX1 0", "@127C4"),
+                     bytes({0x82, 0x3F, 0x00, 0x30, 0xFF}));
+    // OPL2EX's driver drops it, but the number is written the same way.
+    test::checkBytes("OPL2EX @65", track("OPL2EX1 0", "@65C4"),
+                     bytes({0x82, 0x01, 0x00, 0x30, 0xFF}));
     // The SCC's preset waveforms are records too.
     test::checkBytes("SCC @3", track("SCC 0", "@3C4"),
                      bytes({0x85, 0x00, 0x00, 0x30, 0xFF}));
@@ -284,6 +292,33 @@ void adpcmTrack() {
     test::check(refused("OPL2EX1 9", "@64C4"), "a voice file number over 63 is refused");
 }
 
+void ssgCommands() {
+    // ROM: ssgenv's i3 is 87 03, the pan every device shares.
+    test::checkBytes("I3", track("SSGS 0", "I3C4"), bytes({0x87, 0x03, 0x00, 0x30, 0xFF}));
+    // The other drivers drop it; the ROM's compiler writes it all the same.
+    test::checkBytes("I15 on FM", track("OPLLEX1 0", "I15"), bytes({0x87, 0x0F, 0xFF}));
+    test::check(refused("SSGS 0", "I16C4"), "I16 is refused");
+}
+
+void volumeTable() {
+    // B3 on the SCC; the SSGS, FM and rhythm read it and drop it.
+    test::checkBytes("@G0 on the SCC", track("SCC 0", "@G0"), bytes({0xB3, 0x00, 0xFF}));
+    test::checkBytes("@G1 on the SCC", track("SCC 0", "@G1"), bytes({0xB3, 0x01, 0xFF}));
+    test::checkBytes("@G0 on the SSGS", track("SSGS 0", "@G0C4"), bytes({0x00, 0x30, 0xFF}));
+    test::checkBytes("@G0 on FM", track("OPL2EX1 0", "@G0"), bytes({0xFF}));
+    test::checkBytes("@G1 on rhythm", track("OPLLEX1 10", "@G1B8"),
+                     bytes({0xA8, 0x00, 0xC8, 0x10, 0x18, 0xFF}));
+    // ROM: sccgain's @G2 is Illegal function call. The range holds everywhere.
+    test::check(refused("SCC 0", "@G2"), "@G2 is refused");
+    test::check(refused("SSGS 0", "@G2"), "@G2 is refused off the SCC too");
+    test::check(refused("OPLLEX1 10", "@G2B8"), "@G2 is refused on rhythm too");
+    test::check(refused("SCC 0", "@GC4"), "@G with no number is refused");
+    // The ROM counts a tuplet's notes by letter, so the G of @G is one: four
+    // notes' worth, 12 ticks each.
+    test::checkBytes("{@G0CDE}4", track("SCC 0", "{@G0CDE}4"),
+                     bytes({0xB3, 0x00, 0x85, 0x00, 0x00, 0x0C, 0x02, 0x0C, 0x04, 0x0C, 0xFF}));
+}
+
 void envelopes() {
     const std::string env = "#env 1 16,20,8,10\n";
     // ROM's softenv test: @E1V15L2O4CR1 on the SSGS.
@@ -356,9 +391,9 @@ void macros() {
 }
 
 void records() {
-    // 32 numbers, the eight of the name included.
+    // AUDIO: 32 numbers, the eight of the name included.
     const std::string voice =
-        "#voice 128 $50,$69,$61,$6E,$6F,$20,$31,$20,"
+        "#voice AUDIO @128 $50,$69,$61,$6E,$6F,$20,$31,$20,"
         "$00,$00,$0A,$00,$00,$00,$00,$00,"
         "$31,$0E,$D9,$11,$30,$00,$00,$00,"
         "$11,$00,$B2,$F4,$70,$00,$00,$00\n";
@@ -374,7 +409,7 @@ void records() {
     test::checkBytes("@16", track("SCC 0", "@16C4", wave),
                      bytes({0x85, 0x00, 0x00, 0x30, 0xFF}));
 
-    // The record the block carries is the one that was written.
+    // An AUDIO voice is packed as it is read, the way MSAVE packs one.
     {
         Diagnostics diag;
         SourceFile src;
@@ -384,39 +419,118 @@ void records() {
         test::check(compileSequence(src, seq, diag), "and compiles");
         test::check(seq.voices.slots().size() == 1, "one slot is taken");
         const VoiceRecord& r = seq.voices.slots()[0].record;
-        test::check(std::string(r.begin(), r.begin() + 8) == "Piano 1 ",
-                    "the record holds what was written");
-        test::check(r[16] == 0x31 && r[31] == 0x00, "and the rest of it too");
+        test::checkBytes("the AUDIO voice, packed",
+                         std::vector<std::uint8_t>(r.begin(), r.begin() + kPackedVoiceSize),
+                         bytes({0x0A, 0x00, 0x0E, 0xD9, 0x11, 0x31, 0x00, 0x00, 0xB2, 0xF4, 0x11, 0x00}));
     }
 
     test::check(refused("OPL2EX1 0", "@128C4"), "@128 with no #voice is refused");
     test::check(refused("SCC 0", "@16C4"), "@16 with no #wave is refused");
 
+    auto reads = [](const std::string& text) {
+        Diagnostics d;
+        SourceFile s;
+        readSourceText("t.mml", text, s, d);
+        return !d.hasErrors();
+    };
+    const std::string twelve = "1,2,3,4,5,6,7,8,9,10,11,12";
+    const std::string twentyFour = twelve + "," + twelve;
+    const std::string thirtyTwo = twentyFour + ",1,2,3,4,5,6,7,8";
+    const std::string forty = thirtyTwo + ",1,2,3,4,5,6,7,8";
+    const std::string fifty = forty + ",1,2,3,4,5,6,7,8,9,10";
+
     // The number is the user half only; the presets come from the carried table.
-    Diagnostics low;
-    SourceFile lowSrc;
-    readSourceText("t.mml", "#voice 63 1,2,3\n", lowSrc, low);
-    test::check(low.hasErrors(), "#voice on a preset number is refused");
+    test::check(!reads("#voice AUDIO @63 " + thirtyTwo + "\n"), "#voice on a preset number is refused");
+    test::check(!reads("#voice OPL @64 " + twelve + "\n"), "@64 is a preset number and is refused");
+    test::check(!reads("#wave 15 1,2,3\n"), "#wave on a preset number is refused");
 
-    Diagnostics wrongWave;
-    SourceFile waveSrc;
-    readSourceText("t.mml", "#wave 15 1,2,3\n", waveSrc, wrongWave);
-    test::check(wrongWave.hasErrors(), "#wave on a preset number is refused");
+    // Each format takes its own count, and no other.
+    test::check(reads("#voice OPL @128 " + twelve + "\n"), "#voice OPL takes 12 values");
+    test::check(reads("#voice Opl3 @128 " + twentyFour + "\n"), "#voice OPL3 takes 24 values");
+    test::check(reads("#voice opm @128 " + thirtyTwo + "\n"), "#voice OPM takes 32 values");
+    test::check(reads("#voice audio @128 " + thirtyTwo + "\n"), "#voice AUDIO takes 32 values");
+    test::check(reads("#voice SFG @128 " + forty + "\n"), "#voice SFG takes 40 values");
+    test::check(reads("#voice Makoto @128 " + fifty + "\n"), "#voice MAKOTO takes 50 values");
+    test::check(!reads("#voice OPL @128 " + twentyFour + "\n"), "#voice OPL with 24 values is refused");
+    test::check(!reads("#voice OPL3 @128 " + twelve + "\n"), "#voice OPL3 with 12 values is refused");
+    test::check(!reads("#voice AUDIO @128 1,2,3\n"), "#voice AUDIO with 3 values is refused");
+    test::check(!reads("#voice AUDIO @128 \"123456789\"," + twentyFour + "\n"),
+                "#voice AUDIO that runs past 32 values is refused");
+    test::check(!reads("#voice SFG @128 " + thirtyTwo + "\n"), "#voice SFG with 32 values is refused");
+    test::check(!reads("#voice MAKOTO @128 " + forty + "\n"), "#voice MAKOTO with 40 values is refused");
+    test::check(!reads("#voice OPL @128\n"), "#voice OPL with no values is refused");
 
-    Diagnostics short_;
-    SourceFile shortSrc;
-    readSourceText("t.mml", "#voice 128 1,2,3\n", shortSrc, short_);
-    test::check(short_.hasErrors(), "a record that is not 32 bytes is refused");
+    // The format comes first, and the number takes its @.
+    test::check(!reads("#voice 128 " + thirtyTwo + "\n"), "#voice with no format is refused");
+    test::check(!reads("#voice OPN @128 " + twelve + "\n"), "a symbol that names no format is refused");
+    test::check(!reads("#voice OPL 128 " + twelve + "\n"), "#voice OPL with a number and no @ is refused");
+    test::check(!reads("#voice 128 OPL " + twelve + "\n"), "the symbol after the number is refused");
+    test::check(!reads("#voice OPL @ " + twelve + "\n"), "@ with no number is refused");
+    test::check(!reads("#wave 16 OPL " + twelve + "\n"), "#wave takes no format");
+    test::check(!reads(voice + voice), "the same number twice is refused");
 
-    Diagnostics longString;
-    SourceFile longSrc;
-    readSourceText("t.mml", "#voice 128 \"123456789\", 1\n", longSrc, longString);
-    test::check(longString.hasErrors(), "a record that runs past 32 bytes is refused");
+    // Only voices carried as OPL can be named by a Y8960 FM track.
+    test::check(!track("OPLLEX1 0", "@128C4", "#voice OPL @128 " + twelve + "\n").empty(),
+                "an OPL voice plays on OPLLEX");
+    test::check(track("OPL2EX1 0", "@128C4", "#voice OPL3 @128 " + twentyFour + "\n").empty(),
+                "an OPL3 voice on OPL2EX is refused");
+    test::check(track("OPLLEX1 0", "@128C4", "#voice OPM @128 " + thirtyTwo + "\n").empty(),
+                "an OPM voice on OPLLEX is refused");
+    test::check(track("OPLLEX1 0", "@128C4", "#voice SFG @128 " + forty + "\n").empty(),
+                "an SFG voice on OPLLEX is refused");
+}
 
-    Diagnostics twice;
-    SourceFile twiceSrc;
-    readSourceText("t.mml", voice + voice, twiceSrc, twice);
-    test::check(twice.hasErrors(), "the same number twice is refused");
+// SFG and MAKOTO are packed into chunk 40's record as they are read. The
+// expected bytes are put together by hand from the two BASICs' voice format
+// tables and bytecode.md's "OPM と OPN 系の音色".
+void voiceConversions() {
+    auto packed = [](const std::string& text, VoiceFormat& format) {
+        Diagnostics d;
+        SourceFile s;
+        readSourceText("t.mml", text, s, d);
+        for (const Diagnostic& x : d.all()) std::cerr << "  " << x.format() << "\n";
+        auto it = s.userVoices.find(128);
+        if (it == s.userVoices.end()) return std::vector<std::uint8_t>();
+        format = it->second.format;
+        return std::vector<std::uint8_t>(it->second.record.begin(), it->second.record.end());
+    };
+
+    // SFG: LFO speed, AMD and PMD dropped; OP4-OP1 from bit6-3 to bit7-4; the
+    // outputs dropped and the noise bit kept; PMS and AMS swapped into place.
+    // Each operator drops velocity, level key scale and the TL offset.
+    VoiceFormat f = VoiceFormat::Opl;
+    std::vector<std::uint8_t> sfg = packed(
+        "#voice SFG @128 $C8,$7F,$55,$7F,$FA,$5B,$9F,$F4, \\\n"
+        "  $FF,$70,$AB,$F5,$FF,$FF,$FF,$3C, \\\n"
+        "  $10,$00,$00,$21,$1F,$05,$40,$57, \\\n"
+        "  $01,0,0,0,0,0,0,0, $02,0,0,0,0,0,0,0\n",
+        f);
+    test::check(f == VoiceFormat::Opm, "an SFG voice is carried as OPM");
+    test::checkBytes("an SFG voice, packed", sfg,
+                     bytes({0xBA, 0x35, 0xF4, 0xF0,
+                            0x7F, 0xDF, 0x9F, 0xDF, 0x3C, 0x00, 0x75,
+                            0x10, 0x1F, 0x05, 0x40, 0x57, 0x00, 0x21,
+                            0x01, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+                            0x02, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00}));
+
+    // MAKOTO: rates and levels turned round to the chip's way; SSG-EG and KS
+    // out of one column; DT -3..+3 to OPN's sign bit; AMS kept, PMS and the
+    // LFO dropped.
+    f = VoiceFormat::Opl;
+    std::vector<std::uint8_t> makoto = packed(
+        "#voice MAKOTO @128 58,15,5,5,5,5,5,7,0,2, \\\n"
+        "  0,3,31,0,15,127,146,5,-3,1, \\\n"
+        "  31,0,0,15,0,0,0,15,3,0, \\\n"
+        "  0,0,0,0,0,0,0,0,0,0, \\\n"
+        "  0,0,0,0,0,100,0,0,-1,0\n",
+        f);
+    test::check(f == VoiceFormat::Opm, "a MAKOTO voice is carried as OPM");
+    test::checkBytes("a MAKOTO voice, packed", makoto,
+                     bytes({0x3A, 0x20, 0x00, 0xF0,
+                            0x00, 0x9F, 0x9C, 0x00, 0x0F, 0x09, 0x75,
+                            0x7F, 0x00, 0x1F, 0x1F, 0xF0, 0x00, 0x3F,
+                            0x7F, 0x1F, 0x1F, 0x1F, 0xFF, 0x00, 0x00,
+                            0x1B, 0x1F, 0x1F, 0x1F, 0xFF, 0x00, 0x50}));
 }
 
 void continuation() {
@@ -530,9 +644,12 @@ int main() {
     marks();
     rhythmTrack();
     adpcmTrack();
+    ssgCommands();
+    volumeTable();
     envelopes();
     macros();
     records();
+    voiceConversions();
     continuation();
     sourceLines();
     outputNames();

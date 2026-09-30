@@ -7,6 +7,7 @@
 
 #include "compile.h"
 #include "testutil.h"
+#include "voicedata.h"
 
 using namespace y8;
 using test::bytes;
@@ -56,22 +57,76 @@ void voiceChunks() {
     // The track chunk, then the record the sequence carries for @1.
     const std::vector<std::uint8_t>& b = out.sequence;
     std::size_t voiceAt = 7 + 3 + 3 + 5;  // header, chunk head, track head, events
-    test::check(b.size() == voiceAt + 3 + 33, "the block holds one voice chunk");
-    test::checkBytes("the voice chunk head", head(std::vector<std::uint8_t>(
-                                                      b.begin() + static_cast<std::ptrdiff_t>(voiceAt),
-                                                      b.end()),
-                                                  4),
-                     bytes({0x01, 0x21, 0x00, 0x00}));  // type 01, 33 bytes, slot 0
-    // "Piano 2 " is preset 1 of the table the sequence carries.
-    std::string name(b.begin() + static_cast<std::ptrdiff_t>(voiceAt) + 4,
-                     b.begin() + static_cast<std::ptrdiff_t>(voiceAt) + 12);
-    test::check(name == "Piano 2 ", "the record is the one @1 names");
+    // "Piano 2 " is preset 1, packed: FB/CNT 08 and a transpose of 12, then
+    // each operator's 40h 60h 80h 20h E0h, from BASIC's 20h 40h 60h 80h at
+    // 16-19 and 24-27 and E0h at 21 and 29.
+    test::checkBytes("the voice chunk",
+                     std::vector<std::uint8_t>(b.begin() + static_cast<std::ptrdiff_t>(voiceAt), b.end()),
+                     bytes({0x01, 0x0D, 0x00, 0x00,  // type 01, 13 bytes, slot 0
+                            0x08, 0x0C,
+                            0x0F, 0xD9, 0x10, 0x30, 0x00,
+                            0x00, 0xB2, 0xF3, 0x10, 0x00}));
 
     Diagnostics wdiag;
     CompileResult wout;
     test::check(compileText("t.mml", "#assign A SCC 0\nA @2C4\n", wout, wdiag),
                 "an SCC track compiles");
     test::check(wout.sequence[7 + 3 + 3 + 5] == 0x02, "an SCC waveform is chunk 02");
+    test::check(wout.sequence.size() == 7 + 3 + 3 + 5 + 3 + 33, "and keeps its 32 bytes");
+}
+
+// The ROM packs a record the way VOIPACK does. Its rhythm voices it packed by
+// hand from the BASIC records it used to carry, so packing those BASIC records
+// here has to land on the ROM's bytes.
+void packing() {
+    const VoiceRecord before[kRhythmVoiceCount] = {
+        {'B', 'a', 's', 's', 'D', 'r', 'u', 'm', 0x00, 0x00, 0x0E, 0x00, 0x00, 0x00, 0x00, 0x00,
+         0x01, 0x18, 0xDF, 0x6A, 0x00, 0x01, 0x00, 0x00, 0x01, 0x00, 0xF8, 0x6D, 0x00, 0x00, 0x00, 0x00},
+        {'H', 'i', 'H', 'a', 't', '/', 'S', 'D', 0x00, 0x00, 0x01, 0x00, 0x00, 0x00, 0x00, 0x00,
+         0x01, 0x00, 0xC8, 0xA7, 0x00, 0x00, 0x00, 0x00, 0x01, 0x00, 0xD8, 0x48, 0x00, 0x00, 0x00, 0x00},
+        {'T', 'o', 'm', '/', 'C', 'y', 'm', 'b', 0x00, 0x00, 0x01, 0x00, 0x00, 0x00, 0x00, 0x00,
+         0x05, 0x00, 0xF8, 0x59, 0x00, 0x00, 0x00, 0x00, 0x01, 0x00, 0xAA, 0x55, 0x00, 0x00, 0x00, 0x00},
+    };
+    for (int i = 0; i < kRhythmVoiceCount; ++i) {
+        PackedVoice p = packVoice(before[i]);
+        PackedVoice rom = rhythmVoice(i);
+        test::checkBytes("rhythm voice " + std::to_string(i) + " packs to the ROM's",
+                         std::vector<std::uint8_t>(p.begin(), p.end()),
+                         std::vector<std::uint8_t>(rom.begin(), rom.end()));
+    }
+
+    // What VOIPACK drops: MSX-AUDIO's flags in bit7-4 of byte 10, the waveform
+    // bits past 1-0, and the transpose's fraction, rounded at 80h.
+    VoiceRecord r{};
+    r[10] = 0xF7;
+    r[21] = 0xFE;
+    r[29] = 0x07;
+    r[8] = 0x80;
+    r[9] = 0x02;
+    PackedVoice p = packVoice(r);
+    test::check(p[0] == 0x07 && p[6] == 0x02 && p[11] == 0x03, "the bits past the chip's are dropped");
+    test::check(p[1] == 0x03, "a fraction of 80h rounds up");
+    r[8] = 0x7F;
+    test::check(packVoice(r)[1] == 0x02, "a fraction under 80h rounds down");
+    r[8] = 0x80;
+    r[9] = 0xFF;
+    test::check(packVoice(r)[1] == 0x00, "-1 and a half rounds to 0");
+
+    // An OPL #voice is packed already and goes in as written, bits BASIC has no
+    // place for included (WS bit2, which OPL3 reads).
+    Diagnostics diag;
+    CompileResult out;
+    test::check(compileText("t.mml",
+                            "#voice opl @130 $8E,$FE, $18,$DF,$6A,$01,$04, $00,$F8,$6D,$01,$07\n"
+                            "#assign A OPLLEX1 0\n#assign B OPL2EX2 0\nA @130C4\nB @130C4\n",
+                            out, diag),
+                "an OPL #voice on both chips compiles");
+    const std::vector<std::uint8_t>& b = out.sequence;
+    test::checkBytes("the OPL #voice's chunk",
+                     std::vector<std::uint8_t>(b.end() - 16, b.end()),
+                     bytes({0x01, 0x0D, 0x00, 0x00, 0x8E, 0xFE, 0x18, 0xDF, 0x6A, 0x01, 0x04, 0x00,
+                            0xF8, 0x6D, 0x01, 0x07}));
+    test::check(b.size() == 7 + 2 * (3 + 3 + 5) + 16, "both tracks name the one slot");
 }
 
 void rhythmVoices() {
@@ -81,9 +136,12 @@ void rhythmVoices() {
                 "an OPL2EX rhythm track compiles");
     // OPL2EX has no rhythm voices of its own, so slots 32-34 come along.
     std::size_t at = 7 + 3 + 3 + 6;
-    test::check(out.sequence.size() == at + 3 * (3 + 33), "three rhythm voice chunks are there");
-    test::check(out.sequence[at] == 0x01 && out.sequence[at + 3] == 32,
-                "the first of them is slot 32");
+    test::check(out.sequence.size() == at + 3 * (3 + 13), "three rhythm voice chunks are there");
+    test::checkBytes("the first of them is slot 32, packed",
+                     std::vector<std::uint8_t>(out.sequence.begin() + static_cast<std::ptrdiff_t>(at),
+                                               out.sequence.begin() + static_cast<std::ptrdiff_t>(at + 16)),
+                     bytes({0x01, 0x0D, 0x00, 0x20, 0x0E, 0x00, 0x18, 0xDF, 0x6A, 0x01, 0x01, 0x00,
+                            0xF8, 0x6D, 0x01, 0x00}));
 
     Diagnostics odiag;
     CompileResult oout;
@@ -104,13 +162,13 @@ void envelopeChunks() {
                             out, diag),
                 "tracks with @E compile");
     const std::vector<std::uint8_t> tracks = {
-        0x59, 0x38, 0x53, 0x51, 0x01, 0x4D, 0x00,
+        0x59, 0x38, 0x53, 0x51, 0x01, 0x39, 0x00,
         0x00, 0x0C, 0x00, 0x00, 0x00, 0x00,              // track 0, SSGS, channel 0
         0xB2, 0x01, 0x00, 0x30, 0xB2, 0x00, 0x00, 0x30, 0xFF,
         0x00, 0x08, 0x00, 0x01, 0x03, 0x00,              // track 1, OPL2EX1, channel 0
         0x85, 0x00, 0x00, 0x30, 0xFF};
     // Then B's default voice, then chunk 04 for envelope 1 alone.
-    test::check(out.sequence.size() == tracks.size() + 3 + 33 + 8,
+    test::check(out.sequence.size() == tracks.size() + 3 + 13 + 8,
                 "one voice chunk and one envelope chunk");
     test::checkBytes("the tracks", head(out.sequence, tracks.size()), tracks);
     test::checkBytes("chunk 04",
@@ -218,6 +276,7 @@ int main() {
     blockShape();
     emptyTrackIsWritten();
     voiceChunks();
+    packing();
     rhythmVoices();
     envelopeChunks();
     pcmFile();

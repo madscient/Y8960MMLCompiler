@@ -36,6 +36,7 @@
         { "include": "#line-continuation" },
         { "include": "#string" },
         { "include": "#device-symbol" },
+        { "include": "#voice-format" },
         { "include": "#meta-number" },
         { "match": ",", "name": "punctuation.separator.comma.y8960mml" }
       ]
@@ -45,6 +46,12 @@
       "comment": "tests/grammar_test.cpp checks the names in the (?:...) group against the compiler's device table. Keep that group's shape.",
       "match": "(?i)\\b(?:SSGS|OPLLEX1|OPLLEX2|OPL2EX1|OPL2EX2|DCSG1|DCSG2|SCC)\\b",
       "name": "support.constant.device.y8960mml"
+    },
+
+    "voice-format": {
+      "comment": "tests/grammar_test.cpp checks the names in the (?:...) group against the #voice formats the compiler accepts. Keep that group's shape.",
+      "match": "(?i)\\b(?:OPL|OPM|OPL3|AUDIO|SFG|MAKOTO)\\b",
+      "name": "support.constant.voice-format.y8960mml"
     },
 
     "meta-number": {
@@ -99,7 +106,7 @@
         { "match": "\\d+", "name": "constant.numeric.decimal.y8960mml" },
         { "match": "(?i)[a-g][+#-]?", "name": "keyword.other.note.y8960mml" },
         { "match": "(?i)r", "name": "keyword.other.rest.y8960mml" },
-        { "match": "(?i)@[vwpaebsmch]?|[lLoOtTqQvVsSmMnNiIpPyY~&]", "name": "support.function.command.y8960mml" },
+        { "match": "(?i)@[vwpaebsmchg]?|[lLoOtTqQvVsSmMnNiIpPyY~&]", "name": "support.function.command.y8960mml" },
         { "match": "[<>]", "name": "keyword.operator.octave.y8960mml" },
         { "match": "[{}]", "name": "punctuation.section.tuplet.y8960mml" },
         { "match": "\\.", "name": "keyword.operator.dot.y8960mml" },

@@ -49,9 +49,12 @@ struct SampleBinding {
     int line = 0;
 };
 
-// A record #voice or #wave built, and the line it was built on.
+// A record #voice or #wave built, and the line it was built on. A #voice is
+// packed by then, and `format` says which chunk carries it; a #wave has one
+// layout and leaves `format` alone.
 struct RecordDef {
     VoiceRecord record{};
+    VoiceFormat format = VoiceFormat::Opl;
     int line = 0;
 };
 

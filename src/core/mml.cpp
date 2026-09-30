@@ -1,5 +1,6 @@
 #include "mml.h"
 
+#include <algorithm>
 #include <cctype>
 #include <string>
 
@@ -22,6 +23,14 @@ constexpr int kOpllBanked = 64;       // the one number naming no voice
 
 // a b c d e f g, as semitones from c.
 const int kSemitone[7] = {9, 11, 0, 2, 4, 5, 7};
+
+// The table is the ROM's, in the MSX-AUDIO layout; the set holds voices packed.
+VoiceRecord packedPreset(int n) {
+    PackedVoice p = packVoice(presetVoice(n));
+    VoiceRecord r{};
+    std::copy(p.begin(), p.end(), r.begin());
+    return r;
+}
 
 struct Fail {};  // thrown to unwind to the end of the track being compiled
 
@@ -86,6 +95,7 @@ private:
     void cmdPeriod();
     void cmdPan();
     void cmdEnvelope();
+    void cmdVolTable();
     void cmdBend(std::uint8_t op);
     void cmdPorta();
     void cmdReg();
@@ -349,6 +359,12 @@ void TrackCompiler::voiceNumber(long n) {
             if (it == src_.userVoices.end()) {
                 fail("@" + std::to_string(n) + " has no #voice to define it");
             }
+            // OPLLEX and OPL2EX both take chunk 01, so an OPL voice plays on either.
+            const VoiceFormat f = it->second.format;
+            if (f != VoiceFormat::Opl) {
+                fail("@" + std::to_string(n) + " is carried as " + voiceFormatSymbol(f) +
+                     "; this track takes voices carried as OPL");
+            }
             int slot = voices_.intern(false, static_cast<int>(n), it->second.record);
             if (slot < 0) {
                 fail("this sequence already carries " + std::to_string(kVoiceSlots) + " voices");
@@ -358,14 +374,14 @@ void TrackCompiler::voiceNumber(long n) {
             return;
         }
         if (n > kOpllBanked) {
-            // OPLLEX's own presets, bank and number packed into one byte. No
-            // record could stand for them, so the number goes as it is; OPL2EX
-            // has no such bank and its driver drops the event.
-            emit(OpVoice, static_cast<std::uint8_t>(n));
+            // OPLLEX's own presets. No record could stand for them, so the chip
+            // gets bank and preset in bits 5-4 and 3-0; OPL2EX has no such bank
+            // and its driver drops the event.
+            emit(OpVoice, static_cast<std::uint8_t>(n - kOpllBanked));
             voiced_ = true;
             return;
         }
-        int slot = voices_.intern(false, static_cast<int>(n), presetVoice(static_cast<int>(n)));
+        int slot = voices_.intern(false, static_cast<int>(n), packedPreset(static_cast<int>(n)));
         if (slot < 0) fail("this sequence already carries " + std::to_string(kVoiceSlots) + " voices");
         emit(OpSeqVoice, static_cast<std::uint8_t>(slot));
         voiced_ = true;
@@ -406,7 +422,7 @@ void TrackCompiler::defaultVoice() {
         return;
     }
     if (family_ == Family::Fm) {
-        int slot = voices_.intern(false, 0, presetVoice(0));
+        int slot = voices_.intern(false, 0, packedPreset(0));
         if (slot < 0) fail("this sequence already carries " + std::to_string(kVoiceSlots) + " voices");
         emit(OpSeqVoice, static_cast<std::uint8_t>(slot));
     } else if (track_.device == DevSCC) {
@@ -538,7 +554,7 @@ void TrackCompiler::cmdPeriod() {
 void TrackCompiler::cmdPan() {
     long n = needNum();
     if (n > 15) fail("In is 0 to 15");
-    emit(OpSsgPan, static_cast<std::uint8_t>(n));
+    emit(OpPan, static_cast<std::uint8_t>(n));
 }
 
 // Only the PSG family has a software envelope. On the others @En is read and
@@ -556,6 +572,15 @@ void TrackCompiler::cmdEnvelope() {
         (*envelopes_)[static_cast<int>(n)] = it->second.values;
     }
     emit(OpSoftEnv, static_cast<std::uint8_t>(n));
+}
+
+// Read and dropped off the SCC, as @En is off the PSG family: nothing else turns
+// a level through a table. The range is checked either way, as the ROM does.
+void TrackCompiler::cmdVolTable() {
+    long n = needNum();
+    if (n > 1) fail("@Gn is 0 or 1");
+    if (track_.device != DevSCC) return;
+    emit(OpSccVolTable, static_cast<std::uint8_t>(n));
 }
 
 void TrackCompiler::cmdBend(std::uint8_t op) {
@@ -639,6 +664,11 @@ void TrackCompiler::cmdAt() {
     if (c == 'e') {
         skip();
         cmdEnvelope();
+        return;
+    }
+    if (c == 'g') {
+        skip();
+        cmdVolTable();
         return;
     }
     voiceNumber(needNum());
@@ -804,6 +834,11 @@ void TrackCompiler::cmdRhythmAt() {
     if (c == 'e') {
         skip();
         cmdEnvelope();
+        return;
+    }
+    if (c == 'g') {
+        skip();
+        cmdVolTable();
         return;
     }
     if (c == 'w') {

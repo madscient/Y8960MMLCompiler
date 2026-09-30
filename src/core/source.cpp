@@ -327,32 +327,66 @@ void doRecord(const Context& ctx, bool wave) {
     const int last = wave ? kUserWaveLast : kUserVoiceLast;
 
     std::vector<Word> w = split(line, 1);
-    if (w.size() < 3) {
-        ctx.error(0, std::string(what) + " takes a number and " +
-                         std::to_string(kVoiceRecordSize) + " bytes");
+    // "#voice OPL @128 ...": the format first, then the number as MML names it.
+    // A waveform has one layout, and "#wave 16 ..." takes neither.
+    VoiceFormat format = VoiceFormat::Opl;
+    std::size_t numberWord = 1;
+    std::size_t size = kVoiceRecordSize;
+    if (!wave) {
+        std::string names;
+        for (const std::string& n : voiceFormatNames()) names += (names.empty() ? "" : ", ") + n;
+        if (w.size() < 2 || !parseVoiceFormat(w[1].text, format)) {
+            ctx.error(w.size() < 2 ? 0 : w[1].offset, "#voice takes a format first: " + names);
+            return;
+        }
+        size = static_cast<std::size_t>(voiceFormatSize(format));
+        if (w.size() < 3) {
+            ctx.error(w[1].offset, "#voice " + w[1].text + " takes @n and " + std::to_string(size) +
+                                       " values");
+            return;
+        }
+        if (w[2].text[0] != '@') {
+            ctx.error(w[2].offset, "#voice takes the voice number as @n, as MML names it");
+            return;
+        }
+        numberWord = 2;
+    } else if (w.size() < 2) {
+        ctx.error(0, "#wave takes a number and " + std::to_string(kVoiceRecordSize) + " bytes");
         return;
     }
+    const Word& numberAt = w[numberWord];
+    const std::string numberText = wave ? numberAt.text : numberAt.text.substr(1);
     long number = 0;
-    if (!parseInt(w[1].text, number) || number < first || number > last) {
-        ctx.error(w[1].offset, std::string(what) + " takes a number from " +
-                                   std::to_string(first) + " to " + std::to_string(last) +
-                                   "; the ones below that are presets");
+    if (!parseInt(numberText, number) || number < first || number > last) {
+        ctx.error(numberAt.offset, std::string(what) + " takes a number from " +
+                                       std::to_string(first) + " to " + std::to_string(last) +
+                                       "; the ones below that are presets");
+        return;
+    }
+    if (w.size() < numberWord + 2) {
+        ctx.error(numberAt.offset, std::string(what) + " takes " + std::to_string(size) +
+                                       " values after the number");
         return;
     }
 
     std::map<int, RecordDef>& into = wave ? ctx.src.userWaves : ctx.src.userVoices;
     auto it = into.find(static_cast<int>(number));
     if (it != into.end()) {
-        ctx.error(w[1].offset, std::string(what) + " " + w[1].text + " is already defined (line " +
-                                   std::to_string(it->second.line) + ")");
+        ctx.error(numberAt.offset, std::string(what) + " " + numberText + " is already defined (line " +
+                                       std::to_string(it->second.line) + ")");
         return;
     }
 
     RecordDef def;
     def.line = ctx.line.segments.front().line;
     std::vector<std::uint8_t> bytes;
-    if (!byteList(ctx, w[2].offset, def.record.size(), true, bytes)) return;
-    std::copy(bytes.begin(), bytes.end(), def.record.begin());
+    if (!byteList(ctx, w[numberWord + 1].offset, size, true, bytes)) return;
+    if (wave) {
+        std::copy(bytes.begin(), bytes.end(), def.record.begin());
+    } else {
+        def.format = packedFormat(format);
+        def.record = packRecord(format, bytes);
+    }
     into.emplace(static_cast<int>(number), def);
 }
 
