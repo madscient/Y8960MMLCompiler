@@ -390,34 +390,77 @@ void doRecord(const Context& ctx, bool wave) {
     into.emplace(static_cast<int>(number), def);
 }
 
-// The values go into the block as written. The ROM does not check them either:
-// it plays a rate past 32 as 32 and a level past 15 as 15.
+// "#env MUSICA @E1 16,20,8,10": the format first, then the number as MML names
+// it. A MUSICA rate past 32 or a level past 15 is refused rather than rounded
+// the way ENV COPY does, so a slip shows.
 void doEnv(const Context& ctx) {
     const std::string& line = ctx.line.text;
     std::vector<Word> w = split(line, 1);
-    if (w.size() < 3) {
-        ctx.error(0, "#env takes a number and " + std::to_string(kEnvValues) +
-                         " values: AR, DR, SL, RR");
+    EnvFormat format = EnvFormat::Musica;
+    if (w.size() < 2 || !parseEnvFormat(w[1].text, format)) {
+        std::string names;
+        for (const std::string& n : envFormatNames()) names += (names.empty() ? "" : ", ") + n;
+        ctx.error(w.size() < 2 ? 0 : w[1].offset, "#env takes a format first: " + names);
         return;
     }
+    const std::string takes = " takes @En and " + std::to_string(kEnvValues) + " values: AR, DR, SL, RR";
+    if (w.size() < 3) {
+        ctx.error(w[1].offset, "#env " + w[1].text + takes);
+        return;
+    }
+    const Word& numberAt = w[2];
     long number = 0;
-    if (!parseInt(w[1].text, number) || number < 1 || number > kEnvMax) {
-        ctx.error(w[1].offset, "#env takes a number from 1 to " + std::to_string(kEnvMax) +
-                                   "; @E0 is no envelope");
+    if (numberAt.text.size() < 3 || numberAt.text[0] != '@' ||
+        std::tolower(static_cast<unsigned char>(numberAt.text[1])) != 'e') {
+        ctx.error(numberAt.offset, "#env takes the envelope number as @En, as MML names it");
+        return;
+    }
+    if (!parseInt(numberAt.text.substr(2), number) || number < 1 || number > kEnvMax) {
+        ctx.error(numberAt.offset, "#env takes @E1 to @E" + std::to_string(kEnvMax) +
+                                       "; @E0 is no envelope");
+        return;
+    }
+    if (w.size() < 4) {
+        ctx.error(numberAt.offset, "#env " + w[1].text + takes);
         return;
     }
     auto it = ctx.src.envelopes.find(static_cast<int>(number));
     if (it != ctx.src.envelopes.end()) {
-        ctx.error(w[1].offset, "#env " + w[1].text + " is already defined (line " +
-                                   std::to_string(it->second.line) + ")");
+        ctx.error(numberAt.offset, "#env " + numberAt.text + " is already defined (line " +
+                                       std::to_string(it->second.line) + ")");
         return;
     }
 
     EnvDef def;
     def.line = ctx.line.segments.front().line;
     std::vector<std::uint8_t> bytes;
-    if (!byteList(ctx, w[2].offset, def.values.size(), false, bytes)) return;
-    std::copy(bytes.begin(), bytes.end(), def.values.begin());
+    if (!byteList(ctx, w[3].offset, def.values.size(), false, bytes)) return;
+
+    static const char* const kNames[kEnvValues] = {"AR", "DR", "SL", "RR"};
+    constexpr int kLevel = 2;
+    for (int i = 0; i < kEnvValues; ++i) {
+        const std::uint8_t v = bytes[static_cast<std::size_t>(i)];
+        if (i == kLevel) {
+            if (v > kEnvLevelMax) {
+                ctx.error(w[3].offset, "SL is 0 to " + std::to_string(kEnvLevelMax));
+                return;
+            }
+            def.values[static_cast<std::size_t>(i)] = v;
+        } else if (format == EnvFormat::Musica) {
+            if (!envRateByte(v, def.values[static_cast<std::size_t>(i)])) {
+                ctx.error(w[3].offset, std::string(kNames[i]) + " is 0 to " + std::to_string(kEnvRateMax));
+                return;
+            }
+        } else {
+            if (!envRateValid(v)) {
+                ctx.error(w[3].offset, std::string(kNames[i]) +
+                                           " is frames in the high four bits and a step in the low "
+                                           "four, both 1 to 15");
+                return;
+            }
+            def.values[static_cast<std::size_t>(i)] = v;
+        }
+    }
     ctx.src.envelopes.emplace(static_cast<int>(number), def);
 }
 
@@ -464,6 +507,72 @@ std::vector<std::string> metaCommandNames() {
     std::vector<std::string> names;
     for (const MetaCommand& m : kMetaCommands) names.emplace_back(m.name);
     return names;
+}
+
+namespace {
+
+// The ROM's ENVRTAB (src/tab/envdat.asm): rate n of 0-32 as frames << 4 | step.
+const std::uint8_t kEnvRates[kEnvRateMax + 1] = {
+    0xF1, 0xC1, 0xA1, 0x91, 0x81, 0x71, 0x61, 0x51,
+    0x41, 0x72, 0x31, 0x52, 0x21, 0x53, 0x32, 0x43,
+    0x11, 0x34, 0x23, 0x35, 0x12, 0x25, 0x13, 0x27,
+    0x14, 0x15, 0x16, 0x17, 0x18, 0x19, 0x1A, 0x1C,
+    0x1F,
+};
+
+const struct {
+    EnvFormat format;
+    const char* symbol;
+} kEnvFormats[] = {
+    {EnvFormat::Musica, "MUSICA"},
+    {EnvFormat::Raw, "RAW"},
+};
+
+} // namespace
+
+const char* envFormatSymbol(EnvFormat f) {
+    for (const auto& e : kEnvFormats) {
+        if (e.format == f) return e.symbol;
+    }
+    return "";
+}
+
+bool parseEnvFormat(const std::string& text, EnvFormat& out) {
+    std::string upper;
+    for (char c : text) upper.push_back(static_cast<char>(std::toupper(static_cast<unsigned char>(c))));
+    for (const auto& e : kEnvFormats) {
+        if (upper == e.symbol) {
+            out = e.format;
+            return true;
+        }
+    }
+    return false;
+}
+
+std::vector<std::string> envFormatNames() {
+    std::vector<std::string> names;
+    for (const auto& e : kEnvFormats) names.emplace_back(e.symbol);
+    return names;
+}
+
+bool envRateByte(int rate, std::uint8_t& out) {
+    if (rate < 0 || rate > kEnvRateMax) return false;
+    out = kEnvRates[rate];
+    return true;
+}
+
+bool envRateOf(std::uint8_t byte, int& out) {
+    for (int i = 0; i <= kEnvRateMax; ++i) {
+        if (kEnvRates[i] == byte) {
+            out = i;
+            return true;
+        }
+    }
+    return false;
+}
+
+bool envRateValid(std::uint8_t byte) {
+    return (byte >> 4) != 0 && (byte & 0x0F) != 0;
 }
 
 void TrackSource::locate(std::size_t offset, int& line, int& column) const {

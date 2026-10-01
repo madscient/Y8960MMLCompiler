@@ -31,7 +31,7 @@ constexpr int kUserWaveCount = 16;
 
 constexpr int kMaxDots = 7;         // past this a whole note's dot adds nothing
 constexpr int kLengthTicksMax = 382;  // a whole note with every dot that adds
-constexpr int kPieceMax = 336;      // the longest one event takes in bytecode.md
+constexpr int kPieceMax = 336;      // the longest note MML makes, a double-dotted whole
 constexpr std::size_t kLineWidth = 76;
 
 const char* const kNoteNames[12] = {"c", "c+", "d", "d+", "e", "f",
@@ -411,11 +411,19 @@ bool TrackWriter::common(std::size_t i) {
             if (e.word(2) != 0 && e.target(2) != codaEnd_) {
                 warn(e, "this to coda lands somewhere other than the coda; it now goes to the coda");
             }
+            if (e.arg[1] < kMarkCountMin) {
+                warn(e, "a to coda with a count of 0 has no MML and is left out");
+                return true;
+            }
             put("(tc)" + std::to_string(e.arg[1]));
             return true;
         case OpFine:
             if (e.arg[0] != marks_) warn(e, "this fine counts on a counter of its own number");
             ++marks_;
+            if (e.arg[1] < kMarkCountMin) {
+                warn(e, "a fine with a count of 0 has no MML and is left out");
+                return true;
+            }
             put("(fine)" + std::to_string(e.arg[1]));
             return true;
         case OpTempo:
@@ -494,8 +502,8 @@ void TrackWriter::melody(std::size_t i) {
                 warn(e, "volume " + std::to_string(v) + " is past 127 and is left out");
                 return;
             }
-            if (v >= 7 && (v - 7) % 8 == 0) {
-                put("v" + std::to_string((v - 7) / 8));
+            if (v >= kVolumeOfV0 && (v - kVolumeOfV0) % kVolumePerV == 0) {
+                put("v" + std::to_string((v - kVolumeOfV0) / kVolumePerV));
             } else {
                 put("@v" + std::to_string(v));
             }
@@ -859,6 +867,23 @@ void writeVoice(std::string& out, int number, const VoiceRecord& r) {
     out += "\n";
 }
 
+// MUSICA when all three rates are among its 33, which reads as ENV COPY's
+// numbers; RAW otherwise, so that no byte has to move.
+void writeEnv(std::string& out, int number, const EnvRecord& v) {
+    int rates[3];
+    const bool musica = envRateOf(v[0], rates[0]) && envRateOf(v[1], rates[1]) &&
+                        envRateOf(v[3], rates[2]);
+    out += std::string("#env ") + envFormatSymbol(musica ? EnvFormat::Musica : EnvFormat::Raw) +
+           " @E" + std::to_string(number) + " ";
+    if (musica) {
+        out += std::to_string(rates[0]) + "," + std::to_string(rates[1]) + "," +
+               std::to_string(v[2]) + "," + std::to_string(rates[2]);
+    } else {
+        out += hexByte(v[0]) + "," + hexByte(v[1]) + "," + std::to_string(v[2]) + "," + hexByte(v[3]);
+    }
+    out += "\n";
+}
+
 void writeWave(std::string& out, int number, const VoiceRecord& r) {
     const std::string head = "#wave " + std::to_string(number) + " ";
     const std::string indent(head.size(), ' ');
@@ -974,6 +999,25 @@ bool decompileBlock(const std::vector<std::uint8_t>& b, const DecompileOptions& 
             EnvRecord env{};
             std::copy(b.begin() + static_cast<std::ptrdiff_t>(body + 1),
                       b.begin() + static_cast<std::ptrdiff_t>(body + len), env.begin());
+            // Values the format forbids have no #env to say them; the nearest
+            // that may be written stands in.
+            bool bent = false;
+            for (int i : {0, 1, 3}) {
+                std::uint8_t& r = env[static_cast<std::size_t>(i)];
+                if (envRateValid(r)) continue;
+                if ((r >> 4) == 0) r = static_cast<std::uint8_t>(r | 0x10);
+                if ((r & 0x0F) == 0) r = static_cast<std::uint8_t>(r | 0x01);
+                bent = true;
+            }
+            if (env[2] > kEnvLevelMax) {
+                env[2] = kEnvLevelMax;
+                bent = true;
+            }
+            if (bent) {
+                diag.warning(opt.name, 0, 0,
+                             "envelope " + std::to_string(b[body]) +
+                                 " holds values chunk 04 may not; the nearest it may stand in");
+            }
             shared.envelopes[b[body]] = env;
         } else if (type >= kChunkDeviceOwned && type < kChunkSkippable) {
             // It belongs to the device its first byte names. One this MML
@@ -1033,12 +1077,7 @@ bool decompileBlock(const std::vector<std::uint8_t>& b, const DecompileOptions& 
     if (needBank) out += "\n#pcmbank " + opt.pcmBankPath + "\n";
     if (!shared.envUsed.empty()) {
         out += "\n";
-        for (int n : shared.envUsed) {
-            const EnvRecord& v = shared.envelopes[n];
-            out += "#env " + std::to_string(n) + " " + std::to_string(v[0]) + "," +
-                   std::to_string(v[1]) + "," + std::to_string(v[2]) + "," +
-                   std::to_string(v[3]) + "\n";
-        }
+        for (int n : shared.envUsed) writeEnv(out, n, shared.envelopes[n]);
     }
     if (!shared.voiceDefs.empty()) {
         out += "\n";

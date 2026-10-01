@@ -519,8 +519,7 @@ void TrackCompiler::cmdLength() {
 void TrackCompiler::cmdVolume() {
     long n = needNum();
     if (n > kVolMax) fail("Vn is 0 to " + std::to_string(kVolMax));
-    // n*8+7 is the scaling a four bit chip takes the top of and gets n back.
-    emit(OpVolume, static_cast<std::uint8_t>(n * 8 + 7));
+    emit(OpVolume, static_cast<std::uint8_t>(n * kVolumePerV + kVolumeOfV0));
 }
 
 void TrackCompiler::cmdTempo() {
@@ -821,7 +820,9 @@ void TrackCompiler::cmdRhythmAt() {
         skip();
         long n = needNum();
         if (n > kMixerMax) fail("@Vn is 0 to " + std::to_string(kMixerMax));
-        emit(OpRhythmVolume, static_cast<std::uint8_t>((n >> 3) & kRhyVolMax));
+        // The step a four bit chip plays @Vn at, as the ROM's rhythm MML takes it.
+        const long down = std::min<long>((kVolumeTop - n) / kVolumePerV, kRhyVolMax);
+        emit(OpRhythmVolume, static_cast<std::uint8_t>(kRhyVolMax - down));
         return;
     }
     if (c == 'a') {
@@ -971,7 +972,7 @@ void TrackCompiler::cmdParen() {
     if (c == 't') {
         expect("c");
         long n = optNum(2);
-        if (n > 255) fail("a (TC) count is 0 to 255");
+        if (n < kMarkCountMin || n > 255) fail("a (TC) count is 1 to 255");
         if (marks_ >= kMarkMax) {
             fail("a track holds at most " + std::to_string(kMarkMax) + " of (TC) and (FINE)");
         }
@@ -1000,7 +1001,7 @@ void TrackCompiler::cmdParen() {
     if (c == 'f') {
         expect("ine");
         long n = optNum(2);
-        if (n > 255) fail("a (FINE) count is 0 to 255");
+        if (n < kMarkCountMin || n > 255) fail("a (FINE) count is 1 to 255");
         if (marks_ >= kMarkMax) {
             fail("a track holds at most " + std::to_string(kMarkMax) + " of (TC) and (FINE)");
         }

@@ -69,6 +69,12 @@ constexpr int kOctaveMax = 9;
 constexpr int kEnvMax = 31;          // @En; 0 is none, 1-31 name a chunk 04
 constexpr int kEnvValues = 4;        // AR, DR, SL, RR
 constexpr int kCentMax = 1200;
+// 81 counts 0.75 dB a step down from 127. Vn is 4n + 67, so a chip with four
+// bits of volume steps down (127 - v) / 4 and Vn lands on step n.
+constexpr int kVolumeTop = 127;
+constexpr int kVolumeOfV0 = 67;
+constexpr int kVolumePerV = 4;
+constexpr int kMarkCountMin = 1;  // (TC)n and (FINE)n: 0 is not to be written
 constexpr int kLoopDepth = 4;
 constexpr int kSegnoMax = 4;    // (*)0 to (*)3
 constexpr int kMarkMax = 8;     // (TC) and (FINE) share the track's counters

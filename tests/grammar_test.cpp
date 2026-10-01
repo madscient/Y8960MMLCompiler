@@ -100,13 +100,15 @@ int main() {
     sameSet("device symbols", lowerSet(devNames), lowerSet(symbols));
 
     std::string fmt;
-    const JsonValue* fmtRule = repo->member("voice-format");
+    const JsonValue* fmtRule = repo->member("format-symbol");
     const JsonValue* fmtMatch = fmtRule ? fmtRule->member("match") : nullptr;
     std::vector<std::string> fmtNames;
     test::check(fmtMatch && fmtMatch->asString(fmt) &&
                     alternatives(fmt, "\\b(?:", ")\\b", fmtNames),
-                "the voice-format rule keeps its (?:...) group");
-    sameSet("#voice formats", lowerSet(fmtNames), lowerSet(voiceFormatNames()));
+                "the format-symbol rule keeps its (?:...) group");
+    std::vector<std::string> formats = voiceFormatNames();
+    for (const std::string& n : envFormatNames()) formats.push_back(n);
+    sameSet("#voice and #env formats", lowerSet(fmtNames), lowerSet(formats));
 
     return test::report("grammar_test");
 }

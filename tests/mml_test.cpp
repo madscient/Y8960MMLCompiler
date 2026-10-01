@@ -244,6 +244,22 @@ void marks() {
     test::check(refused("SSGS 0", "(*)4"), "a segno number over 3 is refused");
     test::check(refused("SSGS 0", "(TC)(TC)(TC)(TC)(TC)(TC)(TC)(TC)(TC)"),
                 "nine marks in a track are refused");
+    // ROM: loop refuses (TC)0 and (FINE)0. The count is 1-255.
+    test::check(refused("SSGS 0", "(TC)0"), "(TC)0 is refused");
+    test::check(refused("SSGS 0", "(FINE)0"), "(FINE)0 is refused");
+    test::check(!refused("SSGS 0", "(TC)1(FINE)255"), "(TC)1 and (FINE)255 are taken");
+}
+
+void volumes() {
+    // 81 counts 0.75 dB a step from 127, and Vn is 4n + 67.
+    test::checkBytes("V0 V8 V15", track("SSGS 0", "V0V8V15"),
+                     bytes({0x81, 0x43, 0x81, 0x63, 0x81, 0x7F, 0xFF}));
+    test::checkBytes("@V99", track("SSGS 0", "@V99"), bytes({0x81, 0x63, 0xFF}));
+    // On a rhythm track @Vn is the step a four bit chip plays it at:
+    // 15 - min((127 - n) / 4, 15). ROM: rhythm's @V107 is A9 0A, as V10.
+    test::checkBytes("rhythm @V107", track("OPLLEX1 10", "@V107"), bytes({0xA9, 0x0A, 0xFF}));
+    test::checkBytes("rhythm @V127 @V68 @V67 @V0", track("OPLLEX1 10", "@V127@V68@V67@V0"),
+                     bytes({0xA9, 0x0F, 0xA9, 0x01, 0xA9, 0x00, 0xA9, 0x00, 0xFF}));
 }
 
 void rhythmTrack() {
@@ -320,7 +336,7 @@ void volumeTable() {
 }
 
 void envelopes() {
-    const std::string env = "#env 1 16,20,8,10\n";
+    const std::string env = "#env MUSICA @E1 16,20,8,10\n";
     // ROM's softenv test: @E1V15L2O4CR1 on the SSGS.
     test::checkBytes("@E1 on the SSGS", track("SSGS 0", "@E1V15L2O4CR1", env),
                      bytes({0xB2, 0x01, 0x81, 0x7F, 0x80, 0x04, 0x00, 0x60, 0x0C, 0x80, 0xC0,
@@ -348,18 +364,33 @@ void envelopes() {
     test::check(refused("OPL2EX1 0", "@E32C4"), "@E32 is refused on FM too");
     test::check(refused("SSGS 0", "@EC4"), "@E with no number is refused");
 
-    // #env: a number 1-31 and four values 0-255, not checked against what the
-    // player takes.
+    // #env: a format, @E1-@E31 and AR, DR, SL, RR. MUSICA's rates are 0-32 and
+    // RAW's are chunk 04's bytes, both halves 1-15; SL is 0-15 in either.
     const struct {
         const char* line;
         bool ok;
     } cases[] = {
-        {"#env 1 16,20,8,10", true},    {"#env 31 0, 0, 0, 0", true},
-        {"#env 2 $FF,255,99,40", true}, {"#env 0 1,2,3,4", false},
-        {"#env 32 1,2,3,4", false},     {"#env 1 1,2,3", false},
-        {"#env 1 1,2,3,4,5", false},    {"#env 1 1,2,3,256", false},
-        {"#env 1 1,2,-3,4", false},     {"#env 1 \"ab\",3,4", false},
-        {"#env 1", false},
+        {"#env MUSICA @E1 16,20,8,10", true},
+        {"#env musica @e31 0, 0, 0, 0", true},
+        {"#env MUSICA @E2 32,32,15,32", true},
+        {"#env RAW @E3 $11,$12,8,$31", true},
+        {"#env raw @E4 $FF,$1F,15,$F1", true},
+        {"#env MUSICA @E0 1,2,3,4", false},
+        {"#env MUSICA @E32 1,2,3,4", false},
+        {"#env MUSICA @E1 1,2,3", false},
+        {"#env MUSICA @E1 1,2,3,4,5", false},
+        {"#env MUSICA @E1 33,2,3,4", false},
+        {"#env MUSICA @E1 1,2,16,4", false},
+        {"#env MUSICA @E1 1,2,-3,4", false},
+        {"#env MUSICA @E1 \"ab\",3,4", false},
+        {"#env MUSICA @E1", false},
+        {"#env RAW @E1 $10,$12,8,$31", false},
+        {"#env RAW @E1 $01,$12,8,$31", false},
+        {"#env RAW @E1 $11,$12,16,$31", false},
+        {"#env 1 16,20,8,10", false},
+        {"#env MUSICA 1 16,20,8,10", false},
+        {"#env MUSICA @V1 16,20,8,10", false},
+        {"#env PSG @E1 16,20,8,10", false},
     };
     for (const auto& c : cases) {
         Diagnostics diag;
@@ -638,6 +669,7 @@ void outputNames() {
 
 int main() {
     notesAndLengths();
+    volumes();
     voices();
     registerRanges();
     loops();

@@ -36,7 +36,7 @@
         { "include": "#line-continuation" },
         { "include": "#string" },
         { "include": "#device-symbol" },
-        { "include": "#voice-format" },
+        { "include": "#format-symbol" },
         { "include": "#meta-number" },
         { "match": ",", "name": "punctuation.separator.comma.y8960mml" }
       ]
@@ -48,10 +48,10 @@
       "name": "support.constant.device.y8960mml"
     },
 
-    "voice-format": {
-      "comment": "tests/grammar_test.cpp checks the names in the (?:...) group against the #voice formats the compiler accepts. Keep that group's shape.",
-      "match": "(?i)\\b(?:OPL|OPM|OPL3|AUDIO|SFG|MAKOTO)\\b",
-      "name": "support.constant.voice-format.y8960mml"
+    "format-symbol": {
+      "comment": "tests/grammar_test.cpp checks the names in the (?:...) group against the #voice and #env formats the compiler accepts. Keep that group's shape.",
+      "match": "(?i)\\b(?:OPL|OPM|OPL3|AUDIO|SFG|MAKOTO|MUSICA|RAW)\\b",
+      "name": "support.constant.format.y8960mml"
     },
 
     "meta-number": {

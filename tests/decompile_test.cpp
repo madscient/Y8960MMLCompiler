@@ -236,7 +236,7 @@ void compilerOutputComesBack() {
         {"loops, blocks and marks",
          "#assign A OPLLEX1 0\n"
          "A |: c [1 d ] [2 e ] :|2 (*)1 f (tc)3 g (ds)1 (coda) a (fine)3 |: |: c :|3 :|0\n"
-         "#assign B OPLLEX1 1\nB (*) c (*) d (ds) (dc) (ds)2 e (tc) (tc)0\n"},
+         "#assign B OPLLEX1 1\nB (*) c (*) d (ds) (dc) (ds)2 e (tc) (tc)255\n"},
         {"SCC waves",
          "#wave 20 1,2,3,4,5,6,7,8,9,10,11,12,13,14,15,16,17,18,19,20,21,22,23,24,25,26,27,28,"
          "29,30,31,32\n#assign A SCC 0\n#assign B SCC 1\nA @3 c @20 d @3 e @40 f @g0 g @g1 a\n"
@@ -246,7 +246,7 @@ void compilerOutputComesBack() {
          "#assign A OPLLEX1 0\n#assign B OPL2EX2 3\nA @70 c @3 d @150 e @127 f @80 g\n"
          "B @150 c @63 d @65 c\n"},
         {"software envelopes",
-         "#env 2 1,2,3,4\n#env 9 40,0,255,7\n#assign A DCSG1 0\n#assign B DCSG1 3\n"
+         "#env MUSICA @E2 1,2,3,4\n#env RAW @E9 $22,$1F,15,$F1\n#assign A DCSG1 0\n#assign B DCSG1 3\n"
          "#assign C OPLLEX2 0\nA @e2 c @e0 d @e9 e\nB @2 c @e9 d\nC @e2 c\n"},
         {"rhythm",
          "#assign A OPL2EX1 10\nA v12 @a9 @v64 bs!h8 h8 s!8 |: b8 [1 m!c ] [2 c!4 ] :|2 r4 b0 r8\n"
@@ -436,6 +436,46 @@ void formatEdges() {
         test::checkBytes("a voice BASIC cannot hold: the first block comes back", t.sq1, t.sq0);
         test::check(t.mml1.find("#voice OPL @128 $F3,$00, \\") != std::string::npos,
                     "the voice is written packed\n" + t.mml1);
+    }
+
+    // 81 comes back as V where it is 4n + 67, and as @V otherwise.
+    {
+        Diagnostics diag;
+        test::check(decompileBlock(block(0, 0, bytes({0x81, 0x63, 0x81, 0x64, 0xFF})), opt, mml, diag) &&
+                        mml.find("v8 @v100") != std::string::npos,
+                    "81 63 is V8 and 81 64 is @V100\n" + mml);
+    }
+
+    // Chunk 04: MUSICA when every rate is one of the 33, RAW otherwise.
+    {
+        Trip t = trip("an envelope of MUSICA rates",
+                      withChunk(block(5, 0, bytes({0xB2, 0x01, 0x00, 0x30, 0xFF})), 0x04,
+                                bytes({0x01, 0x11, 0x12, 0x08, 0x31})));
+        test::check(t.mml1.find("#env MUSICA @E1 16,20,8,10\n") != std::string::npos,
+                    "11 12 08 31 is MUSICA 16,20,8,10\n" + t.mml1);
+        test::checkBytes("an envelope of MUSICA rates: the first block comes back", t.sq1, t.sq0);
+        Trip r = trip("an envelope of raw rates",
+                      withChunk(block(5, 0, bytes({0xB2, 0x01, 0x00, 0x30, 0xFF})), 0x04,
+                                bytes({0x01, 0x22, 0x12, 0x08, 0x31})));
+        test::check(r.mml1.find("#env RAW @E1 $22,$12,8,$31\n") != std::string::npos,
+                    "22 is no MUSICA rate, so it is RAW\n" + r.mml1);
+        test::checkBytes("an envelope of raw rates: the first block comes back", r.sq1, r.sq0);
+        // A half of 0 and an SL past 15 may not be written; the nearest stands
+        // in. 20 02 14 31 becomes 21 12 0F 31, which MUSICA names.
+        Diagnostics diag;
+        test::check(decompileBlock(withChunk(block(5, 0, bytes({0xB2, 0x01, 0x00, 0x30, 0xFF})), 0x04,
+                                             bytes({0x01, 0x20, 0x02, 0x14, 0x31})),
+                                   opt, mml, diag) &&
+                        diag.all().size() == 1 && mml.find("#env MUSICA @E1 12,20,15,10\n") != std::string::npos,
+                    "an envelope the format forbids is bent with a warning\n" + mml);
+    }
+
+    // (TC)0 and (FINE)0 may not be written, and MML cannot say them.
+    {
+        Diagnostics diag;
+        test::check(decompileBlock(block(0, 0, bytes({0xD4, 0x00, 0x00, 0x00, 0x30, 0xFF})), opt, mml, diag) &&
+                        diag.all().size() == 1 && mml.find("(fine)") == std::string::npos,
+                    "a fine with a count of 0 is left out with a warning\n" + mml);
     }
 }
 

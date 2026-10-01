@@ -58,8 +58,26 @@ struct RecordDef {
     int line = 0;
 };
 
-// AR, DR, SL and RR, in the order chunk 04 carries them.
+// AR, DR, SL and RR, in the order and the bytes chunk 04 carries them: each
+// rate is frames in bit7-4 and a step in bit3-0.
 using EnvRecord = std::array<std::uint8_t, kEnvValues>;
+
+// How #env writes the four: MUSICA takes the 0-32 rates ENV COPY and MuSICA
+// take, RAW takes chunk 04's bytes.
+enum class EnvFormat { Musica, Raw };
+
+constexpr int kEnvRateMax = 32;   // MUSICA's rates
+constexpr int kEnvLevelMax = 15;  // SL, in either format
+
+const char* envFormatSymbol(EnvFormat f);
+bool parseEnvFormat(const std::string& text, EnvFormat& out);
+std::vector<std::string> envFormatNames();
+// A MUSICA rate as chunk 04's byte, and a byte back to the rate it is.
+// False when the value is past 32 or the byte is not one of the 33.
+bool envRateByte(int rate, std::uint8_t& out);
+bool envRateOf(std::uint8_t byte, int& out);
+// Whether a byte is a rate chunk 04 may hold: both halves 1-15.
+bool envRateValid(std::uint8_t byte);
 
 struct EnvDef {
     EnvRecord values{};

@@ -156,7 +156,8 @@ void envelopeChunks() {
     CompileResult out;
     // Only the envelopes a PSG track names are carried, and @E0 names none.
     test::check(compileText("t.mml",
-                            "#env 1 16,20,8,10\n#env 2 1,2,3,4\n#env 3 5,6,7,8\n"
+                            "#env MUSICA @E1 16,20,8,10\n#env MUSICA @E2 1,2,3,4\n"
+                            "#env RAW @E3 $22,$12,8,$31\n"
                             "#assign A SSGS 0\n#assign B OPL2EX1 0\n"
                             "A @E1C4@E0C4\nB @E3C4\n",
                             out, diag),
@@ -171,9 +172,20 @@ void envelopeChunks() {
     test::check(out.sequence.size() == tracks.size() + 3 + 13 + 8,
                 "one voice chunk and one envelope chunk");
     test::checkBytes("the tracks", head(out.sequence, tracks.size()), tracks);
+    // ROM: softenv's ENV COPY of AR 16 DR 20 SL 8 RR 10 is 11 12 08 31.
     test::checkBytes("chunk 04",
                      std::vector<std::uint8_t>(out.sequence.end() - 8, out.sequence.end()),
-                     bytes({0x04, 0x05, 0x00, 0x01, 0x10, 0x14, 0x08, 0x0A}));
+                     bytes({0x04, 0x05, 0x00, 0x01, 0x11, 0x12, 0x08, 0x31}));
+
+    // RAW goes in as written, a byte no MUSICA rate names included.
+    Diagnostics rdiag;
+    CompileResult rout;
+    test::check(compileText("t.mml", "#env RAW @E3 $22,$12,8,$31\n#assign A DCSG1 0\nA @E3C4\n", rout,
+                            rdiag),
+                "a RAW envelope compiles");
+    test::checkBytes("the RAW chunk 04",
+                     std::vector<std::uint8_t>(rout.sequence.end() - 8, rout.sequence.end()),
+                     bytes({0x04, 0x05, 0x00, 0x03, 0x22, 0x12, 0x08, 0x31}));
 }
 
 void pcmFile() {
