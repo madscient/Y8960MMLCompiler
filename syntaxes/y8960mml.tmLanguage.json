@@ -24,7 +24,7 @@
 
     "meta-command": {
       "comment": "tests/grammar_test.cpp checks the names in the (?i:(...)) group against the meta commands the compiler accepts. Keep that group's shape.",
-      "begin": "^(#)(?:(?i:(assign|define|voice|wave|env|pcmbank|adpcm))\\b|(\\S*))",
+      "begin": "^(#)(?:(?i:(assign|define|voice|wave|env|pcmbank|adpcm|title|author|pitch))\\b|(\\S*))",
       "beginCaptures": {
         "1": { "name": "punctuation.definition.directive.y8960mml" },
         "2": { "name": "keyword.control.directive.y8960mml" },

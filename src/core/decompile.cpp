@@ -20,6 +20,7 @@ constexpr std::uint8_t kChunkVoiceFile = 0x03;
 constexpr std::uint8_t kChunkEnvelope = 0x04;
 constexpr std::uint8_t kChunkDeviceOwned = 0x40;  // 40-7F: the body's first byte names a device
 constexpr std::uint8_t kChunkSkippable = 0x80;
+constexpr std::uint8_t kChunkMeta = 0x80;
 constexpr int kSlotIndexLimit = 35;  // 0-31 the set, 32-34 OPL2EX's rhythm voices
 constexpr int kOpllBanked = 64;      // @65-@127 is 82 with @n less this
 
@@ -184,6 +185,7 @@ struct Shared {
     std::set<int> envUsed;
     std::set<int> filesSounded;
     bool zeroMacro = false;  // "=Z;", the one way to write N with length 0
+    MetaInfo meta;           // chunk 80, as #pitch, #title and #author
 };
 
 class TrackWriter {
@@ -841,6 +843,53 @@ void TrackWriter::seqVoice(const Event& e) {
     warn(e, "a voice slot on a channel that takes no record is left out");
 }
 
+// The items of chunk 80 that have a command. An item the format does not name
+// yet is stepped over, as bytecode.md tells a reader to; one that is broken or
+// has no command is left out with a warning.
+template <typename Warn>
+void readMeta(const std::uint8_t* p, std::size_t len, MetaInfo& meta, Warn warn) {
+    auto text = [&](const std::uint8_t* v, std::size_t n, MetaText& into, const char* what) {
+        for (std::size_t i = 0; i < n; ++i) {
+            if (v[i] < kMetaCharMin || v[i] > kMetaCharMax) {
+                warn(std::string(what) + " holds a character past ASCII 20h-7Eh and is left out");
+                return;
+            }
+        }
+        into.text.assign(reinterpret_cast<const char*>(v), n);
+        into.line = 1;
+    };
+    std::set<int> seen;
+    for (std::size_t at = 0; at < len;) {
+        if (at + 2 > len || at + 2 + p[at + 1] > len) {
+            warn("an item runs past the end of the chunk; it and the rest are left out");
+            return;
+        }
+        const std::uint8_t item = p[at];
+        const std::size_t n = p[at + 1];
+        const std::uint8_t* v = p + at + 2;
+        at += 2 + n;
+        if (!seen.insert(item).second) {
+            warn("item " + std::to_string(item) + " comes twice; the second is left out");
+            continue;
+        }
+        if (item == kMetaPitch) {
+            const int pitch = n == 2 ? v[0] | (v[1] << 8) : 0;
+            if (pitch < kPitchMin || pitch > kPitchMax) {
+                warn("a master pitch past 430.0-450.0 Hz is left out");
+                continue;
+            }
+            meta.pitch = pitch;
+            meta.pitchLine = 1;
+        } else if (item == kMetaVolume) {
+            warn("the master volume has no MML and is left out");
+        } else if (item == kMetaTitle) {
+            text(v, n, meta.title, "the title");
+        } else if (item == kMetaAuthor) {
+            text(v, n, meta.author, "the author");
+        }
+    }
+}
+
 // ---------------------------------------------------------------------------
 // the text
 // ---------------------------------------------------------------------------
@@ -939,6 +988,7 @@ bool decompileBlock(const std::vector<std::uint8_t>& b, const DecompileOptions& 
     std::array<TrackChunk, kTrackCount> tracks;
     Shared shared;
     std::vector<VoiceFile> chunkFiles;
+    bool metaSeen = false;
 
     for (std::size_t at = 7; at < size;) {
         if (at + 3 > size) return fail("a chunk runs past the end of the block");
@@ -1028,6 +1078,14 @@ bool decompileBlock(const std::vector<std::uint8_t>& b, const DecompileOptions& 
             }
         } else if (type < kChunkSkippable) {
             return fail("chunk type " + std::to_string(type) + " is not one this reader knows");
+        } else if (type == kChunkMeta) {
+            if (metaSeen) {
+                diag.warning(opt.name, 0, 0, "a second chunk 80 is left out: a block has one");
+            } else {
+                metaSeen = true;
+                readMeta(&b[body], len, shared.meta,
+                         [&](const std::string& m) { diag.warning(opt.name, 0, 0, "chunk 80: " + m); });
+            }
         }
     }
 
@@ -1073,6 +1131,15 @@ bool decompileBlock(const std::vector<std::uint8_t>& b, const DecompileOptions& 
 
     std::string out;
     out += "; y8mmld\n";
+    const MetaInfo& meta = shared.meta;
+    if (meta.title.line || meta.author.line || meta.pitchLine) {
+        out += "\n";
+        if (meta.title.line) out += "#title \"" + meta.title.text + "\"\n";
+        if (meta.author.line) out += "#author \"" + meta.author.text + "\"\n";
+        if (meta.pitchLine) {
+            out += "#pitch " + std::to_string(meta.pitch / 10) + "." + std::to_string(meta.pitch % 10) + "\n";
+        }
+    }
     if (shared.zeroMacro) out += "\n#define Z 0\n";
     if (needBank) out += "\n#pcmbank " + opt.pcmBankPath + "\n";
     if (!shared.envUsed.empty()) {

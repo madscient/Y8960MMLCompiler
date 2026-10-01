@@ -667,6 +667,44 @@ void outputNames() {
 
 } // namespace
 
+// #title, #author and #pitch: what chunk 80 carries.
+void metaCommands() {
+    auto read = [](const std::string& text, SourceFile& src) {
+        Diagnostics d;
+        readSourceText("t.mml", text, src, d);
+        return !d.hasErrors();
+    };
+    {
+        SourceFile src;
+        test::check(read("#title \"My \"best\" song\"\n#author \"Someone\"\n#pitch 442.5\n", src),
+                    "#title, #author and #pitch read");
+        test::check(src.meta.title.text == "My \"best\" song", "a '\"' inside the quotes is kept");
+        test::check(src.meta.author.text == "Someone", "the author is kept");
+        test::check(src.meta.pitch == 4425, "442.5 Hz is 4425 tenths");
+    }
+    const struct {
+        const char* line;
+        bool ok;
+    } cases[] = {
+        {"#pitch 440.0", true},     {"#pitch 442", true},       {"#pitch 430.0", true},
+        {"#pitch 450.0", true},     {"#title \"\"", true},      {"#author \" ~!\"", true},
+        {"#pitch 429.9", false},    {"#pitch 450.1", false},    {"#pitch 440.25", false},
+        {"#pitch 440.", false},     {"#pitch .5", false},       {"#pitch +440", false},
+        {"#pitch 440 1", false},    {"#pitch", false},          {"#pitch abc", false},
+        {"#title Song", false},     {"#title \"Song", false},   {"#title \"a\tb\"", false},
+        {"#title \"\xE6\x9B\xB2\"", false},                     {"#author", false},
+    };
+    for (const auto& c : cases) {
+        SourceFile src;
+        test::check(read(std::string(c.line) + "\n", src) == c.ok,
+                    std::string(c.line) + (c.ok ? " is taken" : " is refused"));
+    }
+    SourceFile longest, tooLong, twice;
+    test::check(read("#title \"" + std::string(255, 'x') + "\"\n", longest), "a 255 character title is taken");
+    test::check(!read("#title \"" + std::string(256, 'x') + "\"\n", tooLong), "a 256 character title is refused");
+    test::check(!read("#pitch 440\n#pitch 441\n", twice), "#pitch twice is refused");
+}
+
 int main() {
     notesAndLengths();
     volumes();
@@ -682,6 +720,7 @@ int main() {
     macros();
     records();
     voiceConversions();
+    metaCommands();
     continuation();
     sourceLines();
     outputNames();

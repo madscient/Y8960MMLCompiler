@@ -29,6 +29,7 @@ struct Sequence {
     // The software envelopes the PSG family's tracks name, which is what
     // chunk 04 carries.
     std::map<int, EnvRecord> envelopes;
+    MetaInfo meta;  // chunk 80
 };
 
 // Compiles every assigned track of `src`. Tracks are taken in order A to P, so

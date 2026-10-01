@@ -284,6 +284,32 @@ void pcmFile() {
 
 } // namespace
 
+// Chunk 80 comes last, its items in number order whatever order the source
+// gives them in. A source with none of the three has no chunk 80 (blockShape).
+void metaChunk() {
+    Diagnostics diag;
+    CompileResult out;
+    test::check(compileText("t.mml",
+                            "#author \"C\"\n#title \"AB\"\n#pitch 442.5\n#assign A SSGS 0\nA C4\n",
+                            out, diag),
+                "a source with #title, #author and #pitch compiles");
+    test::checkBytes("chunk 80",
+                     std::vector<std::uint8_t>(out.sequence.end() - 14, out.sequence.end()),
+                     bytes({0x80, 0x0B, 0x00,
+                            0x01, 0x02, 0x49, 0x11,   // 4425 tenths of a hertz
+                            0x03, 0x02, 'A', 'B',
+                            0x04, 0x01, 'C'}));
+    test::check(out.sequence.size() == 16 + 14, "the track, then chunk 80 alone");
+
+    Diagnostics tdiag;
+    CompileResult tout;
+    test::check(compileText("t.mml", "#title \"X\"\n#assign A SSGS 0\nA C4\n", tout, tdiag),
+                "a source with #title alone compiles");
+    test::checkBytes("chunk 80 with the title alone",
+                     std::vector<std::uint8_t>(tout.sequence.end() - 6, tout.sequence.end()),
+                     bytes({0x80, 0x03, 0x00, 0x03, 0x01, 'X'}));
+}
+
 int main() {
     blockShape();
     emptyTrackIsWritten();
@@ -291,6 +317,7 @@ int main() {
     packing();
     rhythmVoices();
     envelopeChunks();
+    metaChunk();
     pcmFile();
     return test::report("block_test");
 }

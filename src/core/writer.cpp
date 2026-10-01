@@ -1,5 +1,7 @@
 #include "writer.h"
 
+#include <utility>
+
 namespace y8 {
 namespace {
 
@@ -20,6 +22,7 @@ constexpr std::uint8_t kChunkVoice = 0x01;
 constexpr std::uint8_t kChunkWave = 0x02;
 constexpr std::uint8_t kChunkVoiceFile = 0x03;
 constexpr std::uint8_t kChunkEnvelope = 0x04;
+constexpr std::uint8_t kChunkMeta = 0x80;
 constexpr int kRhythmSlotFirst = 32;  // slots 32-34, outside the set events name
 
 } // namespace
@@ -85,6 +88,22 @@ std::vector<std::uint8_t> writeBlock(const Sequence& seq, const AdpcmData& adpcm
         body.insert(body.end(), env.second.begin(), env.second.end());
         putChunk(out, kChunkEnvelope, body);
     }
+
+    // Chunk 80 only when the source gives it something, the items in number order.
+    std::vector<std::uint8_t> meta;
+    if (seq.meta.pitchLine != 0) {
+        meta.push_back(kMetaPitch);
+        meta.push_back(2);
+        putWord(meta, static_cast<unsigned>(seq.meta.pitch));
+    }
+    for (const auto& item : {std::make_pair(kMetaTitle, &seq.meta.title),
+                             std::make_pair(kMetaAuthor, &seq.meta.author)}) {
+        if (item.second->line == 0) continue;
+        meta.push_back(item.first);
+        meta.push_back(static_cast<std::uint8_t>(item.second->text.size()));
+        meta.insert(meta.end(), item.second->text.begin(), item.second->text.end());
+    }
+    if (!meta.empty()) putChunk(out, kChunkMeta, meta);
 
     out[5] = static_cast<std::uint8_t>(out.size() & 0xFF);
     out[6] = static_cast<std::uint8_t>((out.size() >> 8) & 0xFF);

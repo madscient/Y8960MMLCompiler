@@ -466,6 +466,73 @@ void doEnv(const Context& ctx) {
 
 // The one list of meta commands. syntaxes/y8960mml.tmLanguage.json names them
 // too, and tests/grammar_test.cpp holds the two lists to each other.
+// #title "..." and #author "...". The quotes are the first and the last on the
+// line, so a '"' between them is part of the string.
+void doMetaText(const Context& ctx, const char* what, MetaText MetaInfo::*field) {
+    const std::string& line = ctx.line.text;
+    MetaText& t = ctx.src.meta.*field;
+    if (t.line != 0) {
+        ctx.error(0, std::string(what) + " is already given (line " + std::to_string(t.line) + ")");
+        return;
+    }
+    std::vector<Word> w = split(line, 1);
+    const std::size_t from = w[0].offset + w[0].text.size();
+    std::string text;
+    if (!quotedRest(line, from, text)) {
+        ctx.error(from, std::string(what) + " takes a \"...\" string");
+        return;
+    }
+    const std::size_t open = line.find('"', from);
+    for (std::size_t i = 0; i < text.size(); ++i) {
+        const unsigned char c = static_cast<unsigned char>(text[i]);
+        if (c < kMetaCharMin || c > kMetaCharMax) {
+            ctx.error(open + 1 + i, std::string(what) +
+                                        " is written in ASCII alone, letters, digits, space and signs");
+            return;
+        }
+    }
+    if (text.size() > static_cast<std::size_t>(kMetaTextMax)) {
+        ctx.error(open, std::string(what) + " is at most " + std::to_string(kMetaTextMax) +
+                            " characters; this is " + std::to_string(text.size()));
+        return;
+    }
+    t.text = text;
+    t.line = ctx.line.segments.front().line;
+}
+
+// #pitch 442.5: the frequency of A4, to a tenth of a hertz.
+void doPitch(const Context& ctx) {
+    const std::string& line = ctx.line.text;
+    MetaInfo& meta = ctx.src.meta;
+    if (meta.pitchLine != 0) {
+        ctx.error(0, "#pitch is already given (line " + std::to_string(meta.pitchLine) + ")");
+        return;
+    }
+    std::vector<Word> w = split(line, 1);
+    if (w.size() != 2) {
+        ctx.error(0, "#pitch takes one frequency in Hz, as 440.0");
+        return;
+    }
+    const std::string& s = w[1].text;
+    const std::size_t dot = s.find('.');
+    const std::string whole = s.substr(0, dot);
+    const std::string tenth = dot == std::string::npos ? "0" : s.substr(dot + 1);
+    auto digits = [](const std::string& d) {
+        return !d.empty() && d.find_first_not_of("0123456789") == std::string::npos;
+    };
+    if (!digits(whole) || whole.size() > 3 || !digits(tenth) || tenth.size() != 1) {
+        ctx.error(w[1].offset, "#pitch takes Hz to one decimal place, as 440.0 or 442");
+        return;
+    }
+    const int pitch = std::stoi(whole) * 10 + (tenth[0] - '0');
+    if (pitch < kPitchMin || pitch > kPitchMax) {
+        ctx.error(w[1].offset, "#pitch is 430.0 to 450.0");
+        return;
+    }
+    meta.pitch = pitch;
+    meta.pitchLine = ctx.line.segments.front().line;
+}
+
 struct MetaCommand {
     const char* name;
     void (*handler)(const Context&);
@@ -479,6 +546,9 @@ const MetaCommand kMetaCommands[] = {
     {"env", doEnv},
     {"pcmbank", doPcmBank},
     {"adpcm", doAdpcm},
+    {"title", [](const Context& c) { doMetaText(c, "#title", &MetaInfo::title); }},
+    {"author", [](const Context& c) { doMetaText(c, "#author", &MetaInfo::author); }},
+    {"pitch", doPitch},
 };
 
 void doTrackLine(SourceFile& src, const Logical& line) {

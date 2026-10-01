@@ -84,8 +84,35 @@ struct EnvDef {
     int line = 0;
 };
 
+// What chunk 80 carries, from #pitch, #title and #author. A line of 0 is an
+// item the source does not give.
+struct MetaText {
+    std::string text;
+    int line = 0;
+};
+
+struct MetaInfo {
+    int pitch = 0;  // A4 in tenths of a hertz
+    int pitchLine = 0;
+    MetaText title;
+    MetaText author;
+};
+
+// Chunk 80's item numbers, and the ranges bytecode.md gives them.
+constexpr std::uint8_t kMetaPitch = 0x01;
+constexpr std::uint8_t kMetaVolume = 0x02;  // master volume; no command writes it
+constexpr std::uint8_t kMetaTitle = 0x03;
+constexpr std::uint8_t kMetaAuthor = 0x04;
+constexpr int kPitchMin = 4300;    // 430.0 Hz
+constexpr int kPitchMax = 4500;    // 450.0 Hz
+constexpr int kMetaTextMax = 255;  // a value's length is one byte
+// A string is ASCII 20h-7Eh alone: what sits above that depends on the machine.
+constexpr unsigned char kMetaCharMin = 0x20;
+constexpr unsigned char kMetaCharMax = 0x7E;
+
 struct SourceFile {
     std::string path;
+    MetaInfo meta;
     std::array<TrackSource, kTrackCount> tracks;
     std::map<std::string, Macro> macros;
 

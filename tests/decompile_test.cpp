@@ -254,6 +254,8 @@ void compilerOutputComesBack() {
          "#assign C OPL2EX2 10\nC @b3 @s5 @m7 @c9 @h11 v10 @s2 b0 y14,32 @w8 h8 m0 r16 c0 @w16\n"},
         {"N with a length of 0", "#define Z 0\n#assign A SSGS 0\nA n40=Z; @w4 r4 l8 n41 n42=Z; @w8 r0\n"},
         {"a track with nothing in it", "#assign C SCC 4\n#assign P DCSG2 3\nP c\n"},
+        {"meta information",
+         "#title \"My \"best\" song\"\n#author \"Someone\"\n#pitch 442.5\n#assign A SSGS 0\nA c\n"},
     };
     for (const auto& c : cases) {
         std::vector<std::uint8_t> sq0 = compileOk(c.what, c.text);
@@ -468,6 +470,40 @@ void formatEdges() {
                                    opt, mml, diag) &&
                         diag.all().size() == 1 && mml.find("#env MUSICA @E1 12,20,15,10\n") != std::string::npos,
                     "an envelope the format forbids is bent with a warning\n" + mml);
+    }
+
+    // What #title, #author and #pitch put in chunk 80 comes back as those lines.
+    {
+        std::vector<std::uint8_t> sq = compileOk(
+            "meta lines", "#pitch 430.0\n#author \"A\"\n#title \"T\"\n#assign A SSGS 0\nA c\n");
+        Trip t = trip("meta lines", sq);
+        test::check(t.mml1.find("\n#title \"T\"\n#author \"A\"\n#pitch 430.0\n") != std::string::npos,
+                    "chunk 80 comes back as #title, #author and #pitch\n" + t.mml1);
+    }
+
+    // Chunk 80: the master volume has no command, an item the format does not
+    // name yet is stepped over, and what is broken is left out with a warning.
+    {
+        Diagnostics diag;
+        std::vector<std::uint8_t> meta = withChunk(block(0, 0, bytes({0x00, 0x30, 0xFF})), 0x80,
+                                                   bytes({0x02, 0x01, 0x60,         // volume
+                                                          0x05, 0x01, 0x00,         // not named yet
+                                                          0x01, 0x02, 0x10, 0x27,   // 1000.0 Hz
+                                                          0x03, 0x01, 0x80,         // not ASCII
+                                                          0x04, 0x02, 'M', 'e'}));
+        meta = withChunk(meta, 0x80, bytes({0x03, 0x01, 'X'}));
+        test::check(decompileBlock(meta, opt, mml, diag), "a block with chunk 80 decompiles");
+        test::check(diag.all().size() == 4,
+                    "the volume, the pitch, the title and the second chunk 80 are warned about");
+        test::check(mml.find("#author \"Me\"\n") != std::string::npos &&
+                        mml.find("#title") == std::string::npos && mml.find("#pitch") == std::string::npos,
+                    "only the author comes back\n" + mml);
+        Diagnostics cut;
+        test::check(decompileBlock(withChunk(block(0, 0, bytes({0x00, 0x30, 0xFF})), 0x80,
+                                             bytes({0x03, 0x05, 'A'})),
+                                   opt, mml, cut) &&
+                        cut.all().size() == 1,
+                    "an item that runs past chunk 80 is warned about");
     }
 
     // (TC)0 and (FINE)0 may not be written, and MML cannot say them.

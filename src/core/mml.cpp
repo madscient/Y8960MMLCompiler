@@ -1183,6 +1183,7 @@ bool regWritable(Device dev, long reg, long data, std::string& why) {
 
 bool compileSequence(const SourceFile& src, Sequence& out, Diagnostics& diag) {
     bool ok = true;
+    out.meta = src.meta;
     for (int i = 0; i < kTrackCount; ++i) {
         const TrackSource& t = src.tracks[i];
         if (!t.assigned) {
