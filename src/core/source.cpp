@@ -106,7 +106,30 @@ struct Context {
         line.locate(offset, l, c);
         diag.error(src.path, l, c, message);
     }
+    void warning(std::size_t offset, const std::string& message) const {
+        int l = 0, c = 0;
+        line.locate(offset, l, c);
+        diag.warning(src.path, l, c, message);
+    }
 };
+
+// $hh as the byte it stands for. False when it is not '$' and hex digits, or
+// is past 255.
+bool parseHex(const std::string& s, long& out) {
+    if (s.size() < 2 || s[0] != '$') return false;
+    long v = 0;
+    for (std::size_t j = 1; j < s.size(); ++j) {
+        char c = static_cast<char>(std::tolower(static_cast<unsigned char>(s[j])));
+        int d;
+        if (c >= '0' && c <= '9') d = c - '0';
+        else if (c >= 'a' && c <= 'f') d = c - 'a' + 10;
+        else return false;
+        v = v * 16 + d;
+        if (v > 255) return false;
+    }
+    out = v;
+    return true;
+}
 
 void doAssign(const Context& ctx) {
     const std::string& line = ctx.line.text;
@@ -277,17 +300,7 @@ bool byteList(const Context& ctx, std::size_t from, std::size_t size, bool recor
             const std::string item = line.substr(start, i - start);
             long v = 0;
             if (item.size() > 1 && item[0] == '$') {
-                v = 0;
-                bool good = item.size() >= 2;
-                for (std::size_t j = 1; j < item.size(); ++j) {
-                    char c = static_cast<char>(std::tolower(static_cast<unsigned char>(item[j])));
-                    int d;
-                    if (c >= '0' && c <= '9') d = c - '0';
-                    else if (c >= 'a' && c <= 'f') d = c - 'a' + 10;
-                    else { good = false; break; }
-                    v = v * 16 + d;
-                }
-                if (!good || v > 255) {
+                if (!parseHex(item, v)) {
                     ctx.error(start, "'" + item + "' is not a byte written as $00 to $FF");
                     return false;
                 }
@@ -533,6 +546,108 @@ void doPitch(const Context& ctx) {
     meta.pitchLine = ctx.line.segments.front().line;
 }
 
+// #mixer 128,128,100,128,64 gives all five as CALL MIXER takes them: master,
+// SSGS, OPLLEX, OPL2EX, SCC. #mixer SSGS:100,SCC:64 names as many as it sets,
+// and the rest stay unset. One line takes one form: a bare level among names
+// would have nothing to say which it is.
+void doMixer(const Context& ctx) {
+    const std::string& line = ctx.line.text;
+    MixerLevels& mixer = ctx.src.mixer;
+    if (mixer.line != 0) {
+        ctx.error(0, "#mixer is already given (line " + std::to_string(mixer.line) + ")");
+        return;
+    }
+    std::string order = kMixerMasterName;
+    for (int d = 0; d < kDeviceCount; ++d) order += std::string(", ") + deviceSymbol(static_cast<Device>(d));
+    const std::string takes = "#mixer takes " + std::to_string(kMixerSlots) + " levels in the order " +
+                              order + ", or NAME:level for the ones it sets";
+
+    struct Item {
+        std::string text;
+        std::size_t at;
+    };
+    std::vector<Item> items;
+    std::vector<Word> w = split(line, 1);
+    std::size_t i = w[0].offset + w[0].text.size();
+    for (;;) {
+        while (i < line.size() && isSpace(line[i])) ++i;
+        if (i >= line.size() || line[i] == ',') {
+            if (items.empty() && i >= line.size()) {
+                ctx.error(i, takes);
+            } else {
+                ctx.error(i, "#mixer expects a level here");
+            }
+            return;
+        }
+        const std::size_t start = i;
+        while (i < line.size() && line[i] != ',') ++i;
+        std::size_t end = i;
+        while (end > start && isSpace(line[end - 1])) --end;
+        items.push_back({line.substr(start, end - start), start});
+        if (i >= line.size()) break;
+        ++i;
+    }
+
+    auto level = [&](const std::string& text, std::size_t at, int& out) {
+        long v = 0;
+        if (!(parseInt(text, v) || parseHex(text, v)) || v < 0 || v > kMixerLevelMax) {
+            ctx.error(at, "'" + text + "' is not a mixer level; a level is 0 to " +
+                              std::to_string(kMixerLevelMax));
+            return false;
+        }
+        out = static_cast<int>(v);
+        return true;
+    };
+
+    MixerLevels got;
+    const bool named = items.front().text.find(':') != std::string::npos;
+    for (std::size_t k = 0; k < items.size(); ++k) {
+        const Item& item = items[k];
+        const std::size_t colon = item.text.find(':');
+        if ((colon != std::string::npos) != named) {
+            ctx.error(item.at, "#mixer takes either all levels in order or NAME:level, not both");
+            return;
+        }
+        if (!named) {
+            if (k >= static_cast<std::size_t>(kMixerSlots)) {
+                ctx.error(item.at, takes + "; this one is past the last");
+                return;
+            }
+            if (!level(item.text, item.at, got.level[k])) return;
+            continue;
+        }
+        std::string name = item.text.substr(0, colon);
+        while (!name.empty() && isSpace(name.back())) name.pop_back();
+        std::size_t valueAt = colon + 1;
+        while (valueAt < item.text.size() && isSpace(item.text[valueAt])) ++valueAt;
+        int slot = -1;
+        const std::string lowered = lower(name);
+        if (lowered == lower(kMixerMasterName)) slot = 0;
+        for (int d = 0; d < kDeviceCount && slot < 0; ++d) {
+            if (lowered == lower(deviceSymbol(static_cast<Device>(d)))) slot = 1 + d;
+        }
+        if (slot < 0) {
+            ctx.error(item.at, "#mixer names " + order + "; '" + name + "' is not one of them");
+            return;
+        }
+        if (got.level[static_cast<std::size_t>(slot)] >= 0) {
+            ctx.error(item.at, "#mixer gives " + name + " twice");
+            return;
+        }
+        if (!level(item.text.substr(valueAt), item.at + valueAt, got.level[static_cast<std::size_t>(slot)])) {
+            return;
+        }
+    }
+    if (!named && items.size() != static_cast<std::size_t>(kMixerSlots)) {
+        ctx.error(items.front().at, takes + "; this is " + std::to_string(items.size()));
+        return;
+    }
+
+    got.line = ctx.line.segments.front().line;
+    mixer = got;
+    ctx.warning(0, "#mixer is read but not written: Y8SQ has no place for the mixer yet");
+}
+
 struct MetaCommand {
     const char* name;
     void (*handler)(const Context&);
@@ -549,6 +664,7 @@ const MetaCommand kMetaCommands[] = {
     {"title", [](const Context& c) { doMetaText(c, "#title", &MetaInfo::title); }},
     {"author", [](const Context& c) { doMetaText(c, "#author", &MetaInfo::author); }},
     {"pitch", doPitch},
+    {"mixer", doMixer},
 };
 
 void doTrackLine(SourceFile& src, const Logical& line) {

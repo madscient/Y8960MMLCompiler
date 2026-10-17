@@ -99,6 +99,15 @@ int main() {
     for (int i = 0; i < kDeviceCount; ++i) symbols.emplace_back(deviceSymbol(static_cast<Device>(i)));
     sameSet("device symbols", lowerSet(devNames), lowerSet(symbols));
 
+    std::string mix;
+    const JsonValue* mixRule = repo->member("mixer-symbol");
+    const JsonValue* mixMatch = mixRule ? mixRule->member("match") : nullptr;
+    std::vector<std::string> mixNames;
+    test::check(mixMatch && mixMatch->asString(mix) &&
+                    alternatives(mix, "\\b(?:", ")\\b", mixNames),
+                "the mixer-symbol rule keeps its (?:...) group");
+    sameSet("#mixer names", lowerSet(mixNames), lowerSet({kMixerMasterName}));
+
     std::string fmt;
     const JsonValue* fmtRule = repo->member("format-symbol");
     const JsonValue* fmtMatch = fmtRule ? fmtRule->member("match") : nullptr;

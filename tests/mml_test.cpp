@@ -696,6 +696,83 @@ void outputNames() {
 
 } // namespace
 
+// #mixer: five levels in CALL MIXER's order, or NAME:level for some of them.
+// Nothing reaches the block yet, and a warning says so.
+void mixerCommand() {
+    struct Read {
+        bool ok;
+        SourceFile src;
+        Diagnostics diag;
+    };
+    auto read = [](const std::string& text) {
+        Read r;
+        r.ok = readSourceText("t.mml", text, r.src, r.diag);
+        return r;
+    };
+    auto levels = [](const SourceFile& src) {
+        std::vector<int> v(src.mixer.level.begin(), src.mixer.level.end());
+        return v;
+    };
+    {
+        Read r = read("#mixer 128, 0,100 ,$40,7\n");
+        test::check(r.ok, "five levels in order read");
+        test::check(levels(r.src) == std::vector<int>({128, 0, 100, 64, 7}),
+                    "master, SSGS, OPLLEX, OPL2EX, SCC in that order");
+        test::check(r.src.mixer.line == 1, "the line is kept");
+        test::check(r.diag.all().size() == 1 && r.diag.all()[0].severity == Severity::Warning,
+                    "a warning says #mixer is not written");
+    }
+    {
+        Read r = read("#mixer scc:64, Master : 100,OPL2EX:0\n");
+        test::check(r.ok, "NAME:level reads");
+        test::check(levels(r.src) == std::vector<int>({100, -1, -1, 0, 64}),
+                    "the levels named are set and the rest are not");
+    }
+    {
+        Read r = read("#assign A SSGS 0\nA C4\n");
+        test::check(r.src.mixer.line == 0 && levels(r.src) == std::vector<int>(5, -1),
+                    "no #mixer sets nothing");
+        test::check(r.diag.all().empty(), "and warns of nothing");
+    }
+    // A block is the same with or without #mixer: Y8SQ has no place for it.
+    {
+        const std::string body = "#assign A SSGS 0\nA C4\n";
+        Diagnostics d1, d2;
+        CompileResult with, without;
+        test::check(compileText("t.mml", "#mixer SSGS:10\n" + body, with, d1) &&
+                        compileText("t.mml", body, without, d2),
+                    "both compile");
+        test::check(with.sequence == without.sequence, "#mixer writes nothing into the block");
+    }
+    const struct {
+        const char* text;
+        const char* why;
+    } bad[] = {
+        {"#mixer", "no levels"},
+        {"#mixer 128,128,128,128", "four levels in order"},
+        {"#mixer 128,128,128,128,128,128", "six levels in order"},
+        {"#mixer 128,128,,128,128", "an empty level"},
+        {"#mixer 128,128,128,128,128,", "a comma at the end"},
+        {"#mixer 129,128,128,128,128", "a level past 128"},
+        {"#mixer -1,128,128,128,128", "a level below 0"},
+        {"#mixer SSGS:129", "a named level past 128"},
+        {"#mixer SSGS:", "a name with no level"},
+        {"#mixer DCSG1:10", "a name that is not a device"},
+        {"#mixer 0:10", "a device number for a name"},
+        {"#mixer SSGS:10,ssgs:20", "a name twice"},
+        {"#mixer SSGS:10,128", "a bare level among names"},
+        {"#mixer 128,SSGS:10,128,128,128", "a name among levels in order"},
+        {"#mixer SCC:1\n#mixer SCC:2", "#mixer twice"},
+    };
+    for (const auto& b : bad) {
+        Read r = read(std::string(b.text) + "\n");
+        // Refused by #mixer itself, not as a meta command nobody knows.
+        test::check(!r.ok && r.diag.all().back().message.find("mixer") != std::string::npos &&
+                        r.diag.all().back().message.find("meta command") == std::string::npos,
+                    std::string("#mixer refuses ") + b.why);
+    }
+}
+
 // #title, #author and #pitch: what chunk 80 carries.
 void metaCommands() {
     auto read = [](const std::string& text, SourceFile& src) {
@@ -750,6 +827,7 @@ int main() {
     records();
     voiceConversions();
     metaCommands();
+    mixerCommand();
     continuation();
     sourceLines();
     outputNames();

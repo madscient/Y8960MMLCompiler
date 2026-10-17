@@ -24,7 +24,7 @@
 
     "meta-command": {
       "comment": "tests/grammar_test.cpp checks the names in the (?i:(...)) group against the meta commands the compiler accepts. Keep that group's shape.",
-      "begin": "^(#)(?:(?i:(assign|define|voice|wave|env|pcmbank|adpcm|title|author|pitch))\\b|(\\S*))",
+      "begin": "^(#)(?:(?i:(assign|define|voice|wave|env|pcmbank|adpcm|title|author|pitch|mixer))\\b|(\\S*))",
       "beginCaptures": {
         "1": { "name": "punctuation.definition.directive.y8960mml" },
         "2": { "name": "keyword.control.directive.y8960mml" },
@@ -36,6 +36,7 @@
         { "include": "#line-continuation" },
         { "include": "#string" },
         { "include": "#device-symbol" },
+        { "include": "#mixer-symbol" },
         { "include": "#format-symbol" },
         { "include": "#meta-number" },
         { "match": ",", "name": "punctuation.separator.comma.y8960mml" }
@@ -46,6 +47,12 @@
       "comment": "tests/grammar_test.cpp checks the names in the (?:...) group against the compiler's device table. Keep that group's shape.",
       "match": "(?i)\\b(?:SSGS|OPLLEX|OPL2EX|SCC)\\b",
       "name": "support.constant.device.y8960mml"
+    },
+
+    "mixer-symbol": {
+      "comment": "tests/grammar_test.cpp checks the names in the (?:...) group against the name #mixer gives the master. Keep that group's shape.",
+      "match": "(?i)\\b(?:MASTER)\\b",
+      "name": "support.constant.mixer.y8960mml"
     },
 
     "format-symbol": {

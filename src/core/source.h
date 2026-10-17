@@ -110,9 +110,24 @@ constexpr int kMetaTextMax = 255;  // a value's length is one byte
 constexpr unsigned char kMetaCharMin = 0x20;
 constexpr unsigned char kMetaCharMax = 0x7E;
 
+// #mixer: the hardware mixer's levels as CALL MIXER takes them, the master
+// first and then the devices in number order. A level of -1 is one the source
+// does not give. Y8SQ has no place for them yet, so they are read and checked
+// and go no further.
+constexpr int kMixerSlots = 1 + kDeviceCount;
+constexpr int kMixerLevelMax = 128;
+constexpr const char* kMixerMasterName = "MASTER";
+
+struct MixerLevels {
+    std::array<int, kMixerSlots> level;
+    int line = 0;
+    MixerLevels() { level.fill(-1); }
+};
+
 struct SourceFile {
     std::string path;
     MetaInfo meta;
+    MixerLevels mixer;
     std::array<TrackSource, kTrackCount> tracks;
     std::map<std::string, Macro> macros;
 
