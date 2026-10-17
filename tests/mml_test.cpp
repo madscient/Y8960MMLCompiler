@@ -112,24 +112,24 @@ void notesAndLengths() {
 void voices() {
     // An FM track names a slot of the sequence's own set, and a note before the
     // first @n takes voice 0 the same way.
-    test::checkBytes("FM default voice", track("OPL2EX1 0", "C4"),
+    test::checkBytes("FM default voice", track("OPL2EX 0", "C4"),
                      bytes({0x85, 0x00, 0x00, 0x30, 0xFF}));
-    test::checkBytes("FM @1", track("OPL2EX1 0", "@1C4"),
+    test::checkBytes("FM @1", track("OPL2EX 0", "@1C4"),
                      bytes({0x85, 0x00, 0x00, 0x30, 0xFF}));
     // The same number twice takes one slot; two numbers take two.
-    test::checkBytes("FM @1 then @2", track("OPL2EX1 0", "@1C4@2C4@1C4"),
+    test::checkBytes("FM @1 then @2", track("OPL2EX 0", "@1C4@2C4@1C4"),
                      bytes({0x85, 0x00, 0x00, 0x30, 0x85, 0x01, 0x00, 0x30, 0x85, 0x00, 0x00,
                             0x30, 0xFF}));
     // OPLLEX's own presets are a number the chip resolves: @n less 64, bank in
     // bits 5-4 and preset in bits 3-0. ROM: voicenum's @65 is 82 01.
-    test::checkBytes("OPLLEX @65", track("OPLLEX1 0", "@65C4"),
+    test::checkBytes("OPLLEX @65", track("OPLLEX 0", "@65C4"),
                      bytes({0x82, 0x01, 0x00, 0x30, 0xFF}));
-    test::checkBytes("OPLLEX @80", track("OPLLEX1 0", "@80C4"),
+    test::checkBytes("OPLLEX @80", track("OPLLEX 0", "@80C4"),
                      bytes({0x82, 0x10, 0x00, 0x30, 0xFF}));
-    test::checkBytes("OPLLEX @127", track("OPLLEX1 0", "@127C4"),
+    test::checkBytes("OPLLEX @127", track("OPLLEX 0", "@127C4"),
                      bytes({0x82, 0x3F, 0x00, 0x30, 0xFF}));
     // OPL2EX's driver drops it, but the number is written the same way.
-    test::checkBytes("OPL2EX @65", track("OPL2EX1 0", "@65C4"),
+    test::checkBytes("OPL2EX @65", track("OPL2EX 0", "@65C4"),
                      bytes({0x82, 0x01, 0x00, 0x30, 0xFF}));
     // The SCC's preset waveforms are records too.
     test::checkBytes("SCC @3", track("SCC 0", "@3C4"),
@@ -138,7 +138,7 @@ void voices() {
     test::checkBytes("SSGS @96", track("SSGS 0", "@96C4"),
                      bytes({0x82, 0x60, 0x00, 0x30, 0xFF}));
 
-    test::check(refused("OPL2EX1 0", "@64C4"), "@64 names no voice");
+    test::check(refused("OPL2EX 0", "@64C4"), "@64 names no voice");
 }
 
 void registerRanges() {
@@ -150,20 +150,28 @@ void registerRanges() {
     };
     const Case cases[] = {
         {"SSGS 0", "Y$0D,0", true},      {"SSGS 0", "Y$0E,0", false},
+        {"SSGS 0", "Y$0F,0", false},     {"SSGS 0", "Y$10,0", true},
+        {"SSGS 0", "Y$1D,0", true},      {"SSGS 0", "Y$1E,0", false},
         {"SSGS 0", "Y$1F,0", false},     {"SSGS 0", "Y$20,0", true},
-        {"SSGS 0", "Y$2D,0", true},      {"SSGS 0", "Y$2E,0", false},
-        {"OPLLEX1 0", "Y$07,0", true},   {"OPLLEX1 0", "Y$08,0", false},
-        {"OPLLEX1 0", "Y$0E,0", true},   {"OPLLEX1 0", "Y$18,0", true},
-        {"OPLLEX1 0", "Y$19,0", false},  {"OPLLEX1 0", "Y$28,0", true},
-        {"OPLLEX1 0", "Y$29,0", false},  {"OPLLEX1 0", "Y$38,0", true},
-        {"OPLLEX1 0", "Y$39,0", false},  {"OPLLEX1 0", "Y$40,0", true},
-        {"OPLLEX1 0", "Y$48,0", true},   {"OPLLEX1 0", "Y$49,0", false},
-        {"OPL2EX1 0", "Y$03,0", true},   {"OPL2EX1 0", "Y$04,0", false},
-        {"OPL2EX1 0", "Y$05,0", true},   {"OPL2EX1 0", "Y$FF,0", true},
-        {"DCSG1 0", "Y7,15", true},      {"DCSG1 0", "Y8,0", false},
-        {"DCSG1 0", "Y7,16", false},     {"SCC 0", "Y$FF,$FF", true},
+        {"SSGS 0", "Y$22,0", true},      {"SSGS 0", "Y$23,0", false},
+        {"SSGS 0", "Y$24,0", true},      {"SSGS 0", "Y$26,0", true},
+        {"SSGS 0", "Y$27,0", false},     {"SSGS 0", "Y$28,0", true},
+        {"SSGS 0", "Y$2A,0", true},      {"SSGS 0", "Y$2B,0", false},
+        {"SSGS 0", "Y$2C,0", true},      {"SSGS 0", "Y$2E,0", true},
+        {"SSGS 0", "Y$2F,0", false},     {"SSGS 0", "Y$30,0", false},
+        {"OPLLEX 0", "Y$07,0", true},   {"OPLLEX 0", "Y$08,0", false},
+        {"OPLLEX 0", "Y$0E,0", true},   {"OPLLEX 0", "Y$18,0", true},
+        {"OPLLEX 0", "Y$19,0", false},  {"OPLLEX 0", "Y$28,0", true},
+        {"OPLLEX 0", "Y$29,0", false},  {"OPLLEX 0", "Y$38,0", true},
+        {"OPLLEX 0", "Y$39,0", false},  {"OPLLEX 0", "Y$40,0", true},
+        {"OPLLEX 0", "Y$48,0", true},   {"OPLLEX 0", "Y$49,0", false},
+        {"OPLLEX 0", "Y$4F,0", false},  {"OPLLEX 0", "Y$50,0", true},
+        {"OPLLEX 0", "Y$58,0", true},   {"OPLLEX 0", "Y$59,0", false},
+        {"OPL2EX 0", "Y$03,0", true},   {"OPL2EX 0", "Y$04,0", false},
+        {"OPL2EX 0", "Y$05,0", true},   {"OPL2EX 0", "Y$FF,0", true},
+        {"OPL2EX 0", "Y$F6,$80", true},  {"SCC 0", "Y$FF,$FF", true},
         // A rhythm or ADPCM track writes the registers of the block it is on.
-        {"OPLLEX1 10", "Y$0E,$20", true}, {"OPL2EX1 9", "Y$04,0", false},
+        {"OPLLEX 10", "Y$0E,$20", true}, {"OPL2EX 9", "Y$04,0", false},
     };
     for (const Case& c : cases) {
         test::check(refused(c.assign, c.mml) != c.ok,
@@ -254,18 +262,25 @@ void volumes() {
     // 81 counts 0.75 dB a step from 127, and Vn is 4n + 67.
     test::checkBytes("V0 V8 V15", track("SSGS 0", "V0V8V15"),
                      bytes({0x81, 0x43, 0x81, 0x63, 0x81, 0x7F, 0xFF}));
-    test::checkBytes("@V99", track("SSGS 0", "@V99"), bytes({0x81, 0x63, 0xFF}));
+    test::checkBytes("@V99", track("OPLLEX 0", "@V99"), bytes({0x81, 0x63, 0xFF}));
+    test::check(refused("OPLLEX 0", "@V128"), "@V128 is refused off the SSGS");
+    // On the SSGS @Vn is B4, the channel's linear volume register, 0-128. V
+    // stays 81.
+    test::checkBytes("SSGS @V99", track("SSGS 0", "@V99"), bytes({0xB4, 0x63, 0xFF}));
+    test::checkBytes("SSGS @V128 @V0 V8", track("SSGS 0", "@V128@V0V8"),
+                     bytes({0xB4, 0x80, 0xB4, 0x00, 0x81, 0x63, 0xFF}));
+    test::check(refused("SSGS 0", "@V129"), "@V129 is refused on the SSGS");
     // On a rhythm track @Vn is the step a four bit chip plays it at:
     // 15 - min((127 - n) / 4, 15). ROM: rhythm's @V107 is A9 0A, as V10.
-    test::checkBytes("rhythm @V107", track("OPLLEX1 10", "@V107"), bytes({0xA9, 0x0A, 0xFF}));
-    test::checkBytes("rhythm @V127 @V68 @V67 @V0", track("OPLLEX1 10", "@V127@V68@V67@V0"),
+    test::checkBytes("rhythm @V107", track("OPLLEX 10", "@V107"), bytes({0xA9, 0x0A, 0xFF}));
+    test::checkBytes("rhythm @V127 @V68 @V67 @V0", track("OPLLEX 10", "@V127@V68@V67@V0"),
                      bytes({0xA9, 0x0F, 0xA9, 0x01, 0xA9, 0x00, 0xA9, 0x00, 0xFF}));
 }
 
 void rhythmTrack() {
     // The accent set is written only when it moves, and a run of letters sounds
     // together.
-    test::checkBytes("rhythm", track("OPL2EX1 10", "V10@A3BSH8H8S!H8"),
+    test::checkBytes("rhythm", track("OPL2EX 10", "V10@A3BSH8H8S!H8"),
                      bytes({0xA9, 0x0A,                     // v10
                             0xAA, 0x03,                     // @a3
                             0xA8, 0x00,                     // no accent yet
@@ -274,46 +289,53 @@ void rhythmTrack() {
                             0xA8, 0x08,                     // the snare takes the accent
                             0xC8, 0x09, 0x18,               // snare+hihat
                             0xFF}));
-    test::check(refused("OPL2EX1 10", "A4"), "a letter naming no instrument is refused");
-    test::check(refused("OPL2EX1 10", "L8B8"), "a rhythm track has no L");
+    test::check(refused("OPL2EX 10", "A4"), "a letter naming no instrument is refused");
+    test::check(refused("OPL2EX 10", "L8B8"), "a rhythm track has no L");
     test::check(refused("SSGS 0", "B!8"), "'!' means nothing off a rhythm track");
 
     // ROM: a strike of length 0, then @W1 - a whole note in the long form.
-    test::checkBytes("T60B0@W1H1", track("OPLLEX1 10", "T60B0@W1H1"),
+    test::checkBytes("T60B0@W1H1", track("OPLLEX 10", "T60B0@W1H1"),
                      bytes({0x84, 0x3C, 0xA8, 0x00, 0xC8, 0x10, 0x00, 0x0E, 0x80, 0xC0, 0xC8,
                             0x01, 0x80, 0xC0, 0xFF}));
     // ROM: two strikes on one tick are refused, and R0 and @W0 do not part them.
-    test::check(refused("OPLLEX1 10", "B0H1"), "two strikes on one tick are refused");
-    test::check(refused("OPLLEX1 10", "B0R0H1"), "R0 does not part two strikes");
-    test::check(refused("OPLLEX1 10", "B0@W0H1"), "@W0 is refused on a rhythm track");
-    test::check(!refused("OPLLEX1 10", "B0R1H1"), "a rest with a length parts two strikes");
+    test::check(refused("OPLLEX 10", "B0H1"), "two strikes on one tick are refused");
+    test::check(refused("OPLLEX 10", "B0R0H1"), "R0 does not part two strikes");
+    test::check(refused("OPLLEX 10", "B0@W0H1"), "@W0 is refused on a rhythm track");
+    test::check(!refused("OPLLEX 10", "B0R1H1"), "a rest with a length parts two strikes");
 
     // One instrument's plain level: D8, the instrument's bit, the level.
-    test::checkBytes("@B3@S5@M7@C9@H11", track("OPLLEX1 10", "@B3@S5@M7@C9@H11V10@s2"),
+    test::checkBytes("@B3@S5@M7@C9@H11", track("OPLLEX 10", "@B3@S5@M7@C9@H11V10@s2"),
                      bytes({0xD8, 0x10, 0x03, 0xD8, 0x08, 0x05, 0xD8, 0x04, 0x07, 0xD8, 0x02,
                             0x09, 0xD8, 0x01, 0x0B, 0xA9, 0x0A, 0xD8, 0x08, 0x02, 0xFF}));
     // ROM: past 15, no number and a letter naming no instrument are refused.
-    test::check(!refused("OPLLEX1 10", "@B15@S0B4"), "@B15 and @S0 are taken");
-    test::check(!refused("OPLLEX1 10", "B0@W8H8"), "@W takes time on a rhythm track");
-    test::check(refused("OPLLEX1 10", "@B16B4"), "@B16 is refused");
-    test::check(refused("OPLLEX1 10", "@SB4"), "@S with no number is refused");
-    test::check(refused("OPLLEX1 10", "@X3B4"), "@X names no instrument");
+    test::check(!refused("OPLLEX 10", "@B15@S0B4"), "@B15 and @S0 are taken");
+    test::check(!refused("OPLLEX 10", "B0@W8H8"), "@W takes time on a rhythm track");
+    test::check(refused("OPLLEX 10", "@B16B4"), "@B16 is refused");
+    test::check(refused("OPLLEX 10", "@SB4"), "@S with no number is refused");
+    test::check(refused("OPLLEX 10", "@X3B4"), "@X names no instrument");
 }
 
 void adpcmTrack() {
     // @n is a voice file number the chip resolves; no record stands behind it.
-    test::checkBytes("ADPCM", track("OPL2EX1 9", "@2O5E4"),
+    test::checkBytes("ADPCM", track("OPL2EX 9", "@2O5E4"),
                      bytes({0x82, 0x02, 0x80, 0x05, 0x04, 0x30, 0xFF}));
-    test::check(!refused("OPL2EX1 9", "@63C4"), "63 is the last voice file number");
-    test::check(refused("OPL2EX1 9", "@64C4"), "a voice file number over 63 is refused");
+    test::check(!refused("OPL2EX 9", "@63C4"), "63 is the last voice file number");
+    test::check(refused("OPL2EX 9", "@64C4"), "a voice file number over 63 is refused");
 }
 
 void ssgCommands() {
-    // ROM: ssgenv's i3 is 87 03, the pan every device shares.
+    // ROM: ssgenv's i3 is 87 03, the pan every device shares. It is the chip's
+    // register value, 0-255.
     test::checkBytes("I3", track("SSGS 0", "I3C4"), bytes({0x87, 0x03, 0x00, 0x30, 0xFF}));
-    // The other drivers drop it; the ROM's compiler writes it all the same.
-    test::checkBytes("I15 on FM", track("OPLLEX1 0", "I15"), bytes({0x87, 0x0F, 0xFF}));
-    test::check(refused("SSGS 0", "I16C4"), "I16 is refused");
+    test::checkBytes("I255 on OPLLEX", track("OPLLEX 0", "I255"), bytes({0x87, 0xFF, 0xFF}));
+    test::checkBytes("I128 on OPL2EX", track("OPL2EX 0", "I128"), bytes({0x87, 0x80, 0xFF}));
+    // The SCC's driver drops it; the ROM's compiler writes it all the same.
+    test::checkBytes("I0 on the SCC", track("SCC 0", "I0"), bytes({0x87, 0x00, 0xFF}));
+    test::check(refused("SSGS 0", "I256C4"), "I256 is refused");
+    // A rhythm track takes I too: its instruments sound through channels 6-8.
+    test::checkBytes("I on OPLLEX rhythm", track("OPLLEX 10", "I1B8"),
+                     bytes({0x87, 0x01, 0xA8, 0x00, 0xC8, 0x10, 0x18, 0xFF}));
+    test::checkBytes("I on OPL2EX rhythm", track("OPL2EX 10", "I200"), bytes({0x87, 0xC8, 0xFF}));
 }
 
 void volumeTable() {
@@ -321,13 +343,13 @@ void volumeTable() {
     test::checkBytes("@G0 on the SCC", track("SCC 0", "@G0"), bytes({0xB3, 0x00, 0xFF}));
     test::checkBytes("@G1 on the SCC", track("SCC 0", "@G1"), bytes({0xB3, 0x01, 0xFF}));
     test::checkBytes("@G0 on the SSGS", track("SSGS 0", "@G0C4"), bytes({0x00, 0x30, 0xFF}));
-    test::checkBytes("@G0 on FM", track("OPL2EX1 0", "@G0"), bytes({0xFF}));
-    test::checkBytes("@G1 on rhythm", track("OPLLEX1 10", "@G1B8"),
+    test::checkBytes("@G0 on FM", track("OPL2EX 0", "@G0"), bytes({0xFF}));
+    test::checkBytes("@G1 on rhythm", track("OPLLEX 10", "@G1B8"),
                      bytes({0xA8, 0x00, 0xC8, 0x10, 0x18, 0xFF}));
     // ROM: sccgain's @G2 is Illegal function call. The range holds everywhere.
     test::check(refused("SCC 0", "@G2"), "@G2 is refused");
     test::check(refused("SSGS 0", "@G2"), "@G2 is refused off the SCC too");
-    test::check(refused("OPLLEX1 10", "@G2B8"), "@G2 is refused on rhythm too");
+    test::check(refused("OPLLEX 10", "@G2B8"), "@G2 is refused on rhythm too");
     test::check(refused("SCC 0", "@GC4"), "@G with no number is refused");
     // The ROM counts a tuplet's notes by letter, so the G of @G is one: four
     // notes' worth, 12 ticks each.
@@ -343,8 +365,6 @@ void envelopes() {
                             0xFF}));
     test::checkBytes("@E1 on the SCC", track("SCC 0", "@E1C4", env),
                      bytes({0xB2, 0x01, 0x85, 0x00, 0x00, 0x30, 0xFF}));
-    test::checkBytes("@E1 on the DCSG", track("DCSG1 0", "@E1C4", env),
-                     bytes({0xB2, 0x01, 0x00, 0x30, 0xFF}));
     // @E0 is no envelope and needs no #env.
     test::checkBytes("@E0", track("SSGS 0", "@E0C4"), bytes({0xB2, 0x00, 0x00, 0x30, 0xFF}));
     // Space may fall between @E and its number, as anywhere else.
@@ -352,16 +372,16 @@ void envelopes() {
                      bytes({0xB2, 0x01, 0x00, 0x30, 0xFF}));
 
     // On the FM family it is read and dropped, defined or not.
-    test::checkBytes("@E1 on FM", track("OPL2EX1 0", "@E1C4"),
+    test::checkBytes("@E1 on FM", track("OPL2EX 0", "@E1C4"),
                      bytes({0x85, 0x00, 0x00, 0x30, 0xFF}));
-    test::checkBytes("@E1 on ADPCM", track("OPL2EX1 9", "@E1@2O5E4"),
+    test::checkBytes("@E1 on ADPCM", track("OPL2EX 9", "@E1@2O5E4"),
                      bytes({0x82, 0x02, 0x80, 0x05, 0x04, 0x30, 0xFF}));
-    test::checkBytes("@E1 on rhythm", track("OPLLEX1 10", "@E1B8"),
+    test::checkBytes("@E1 on rhythm", track("OPLLEX 10", "@E1B8"),
                      bytes({0xA8, 0x00, 0xC8, 0x10, 0x18, 0xFF}));
 
     test::check(refused("SSGS 0", "@E2C4"), "@E2 with no #env is refused");
     test::check(refused("SSGS 0", "@E32C4"), "@E32 is refused");
-    test::check(refused("OPL2EX1 0", "@E32C4"), "@E32 is refused on FM too");
+    test::check(refused("OPL2EX 0", "@E32C4"), "@E32 is refused on FM too");
     test::check(refused("SSGS 0", "@EC4"), "@E with no number is refused");
 
     // #env: a format, @E1-@E31 and AR, DR, SL, RR. MUSICA's rates are 0-32 and
@@ -428,7 +448,7 @@ void records() {
         "$00,$00,$0A,$00,$00,$00,$00,$00,"
         "$31,$0E,$D9,$11,$30,$00,$00,$00,"
         "$11,$00,$B2,$F4,$70,$00,$00,$00\n";
-    test::checkBytes("@128", track("OPL2EX1 0", "@128C4", voice),
+    test::checkBytes("@128", track("OPL2EX 0", "@128C4", voice),
                      bytes({0x85, 0x00, 0x00, 0x30, 0xFF}));
 
     // The name may be written as a string, and a waveform level may be negative.
@@ -444,7 +464,7 @@ void records() {
     {
         Diagnostics diag;
         SourceFile src;
-        test::check(readSourceText("t.mml", voice + "#assign A OPL2EX1 0\nA @128C4\n", src, diag),
+        test::check(readSourceText("t.mml", voice + "#assign A OPL2EX 0\nA @128C4\n", src, diag),
                     "a #voice source reads");
         Sequence seq;
         test::check(compileSequence(src, seq, diag), "and compiles");
@@ -455,7 +475,7 @@ void records() {
                          bytes({0x0A, 0x00, 0x0E, 0xD9, 0x11, 0x31, 0x00, 0x00, 0xB2, 0xF4, 0x11, 0x00}));
     }
 
-    test::check(refused("OPL2EX1 0", "@128C4"), "@128 with no #voice is refused");
+    test::check(refused("OPL2EX 0", "@128C4"), "@128 with no #voice is refused");
     test::check(refused("SCC 0", "@16C4"), "@16 with no #wave is refused");
 
     auto reads = [](const std::string& text) {
@@ -501,13 +521,13 @@ void records() {
     test::check(!reads(voice + voice), "the same number twice is refused");
 
     // Only voices carried as OPL can be named by a Y8960 FM track.
-    test::check(!track("OPLLEX1 0", "@128C4", "#voice OPL @128 " + twelve + "\n").empty(),
+    test::check(!track("OPLLEX 0", "@128C4", "#voice OPL @128 " + twelve + "\n").empty(),
                 "an OPL voice plays on OPLLEX");
-    test::check(track("OPL2EX1 0", "@128C4", "#voice OPL3 @128 " + twentyFour + "\n").empty(),
+    test::check(track("OPL2EX 0", "@128C4", "#voice OPL3 @128 " + twentyFour + "\n").empty(),
                 "an OPL3 voice on OPL2EX is refused");
-    test::check(track("OPLLEX1 0", "@128C4", "#voice OPM @128 " + thirtyTwo + "\n").empty(),
+    test::check(track("OPLLEX 0", "@128C4", "#voice OPM @128 " + thirtyTwo + "\n").empty(),
                 "an OPM voice on OPLLEX is refused");
-    test::check(track("OPLLEX1 0", "@128C4", "#voice SFG @128 " + forty + "\n").empty(),
+    test::check(track("OPLLEX 0", "@128C4", "#voice SFG @128 " + forty + "\n").empty(),
                 "an SFG voice on OPLLEX is refused");
 }
 
@@ -634,13 +654,22 @@ void sourceLines() {
 
     Diagnostics clash;
     SourceFile src4;
-    readSourceText("t.mml", "#assign A OPL2EX1 6\n#assign B OPL2EX1 10\n", src4, clash);
+    readSourceText("t.mml", "#assign A OPL2EX 6\n#assign B OPL2EX 10\n", src4, clash);
     test::check(clash.hasErrors(), "channel 10 and channels 6-8 cannot share a block");
 
     Diagnostics twice;
     SourceFile src5;
     readSourceText("t.mml", "#assign A SSGS 0\n#assign B SSGS 0\n", src5, twice);
     test::check(twice.hasErrors(), "two tracks cannot hold one channel");
+
+    // The devices are 0 SSGS, 1 OPLLEX, 2 OPL2EX and 3 SCC, by name or number.
+    // @G0 is written on the SCC alone.
+    test::checkBytes("device 3 is the SCC", track("3 4", "@G0"), bytes({0xB3, 0x00, 0xFF}));
+    test::checkBytes("device 2 is OPL2EX", track("2 9", "@1C4"),
+                     bytes({0x82, 0x01, 0x00, 0x30, 0xFF}));
+    for (const char* gone : {"4 0", "7 0", "OPLLEX1 0", "OPL2EX2 0", "DCSG1 0"}) {
+        test::check(refused(gone, "C4"), std::string(gone) + " is not a device");
+    }
 }
 
 void outputNames() {

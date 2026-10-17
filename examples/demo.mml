@@ -3,10 +3,10 @@
 ; Four parts: an FM lead on a voice this file builds, an SCC bass on a
 ; waveform it builds too, a preset FM pad and a rhythm track.
 
-#assign A OPL2EX1 0
+#assign A OPL2EX 0
 #assign B SCC 0
-#assign C OPL2EX1 1
-#assign D OPL2EX1 10
+#assign C OPL2EX 1
+#assign D OPL2EX 10
 
 #define TEMPO 132
 #define RIFF  "cdefgab>c<"

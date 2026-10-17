@@ -36,8 +36,8 @@ struct Sequence {
 // the voice slots come out the same for the same source.
 bool compileSequence(const SourceFile& src, Sequence& out, Diagnostics& diag);
 
-// Whether Y may write `data` to register `reg` of `dev`; `why` says why not.
+// Whether Y may write register `reg` of `dev`; `why` says why not.
 // y8mmld asks the same question before it writes a Y.
-bool regWritable(Device dev, long reg, long data, std::string& why);
+bool regWritable(Device dev, long reg, std::string& why);
 
 } // namespace y8

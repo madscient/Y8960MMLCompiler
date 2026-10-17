@@ -11,7 +11,6 @@ namespace y8 {
 namespace {
 
 constexpr int kQuantMax = 8;
-constexpr int kVolMax = 15;
 constexpr int kMixerMax = 127;
 constexpr int kTempoMin = 32;
 constexpr int kRhyVolMax = 15;
@@ -534,9 +533,10 @@ void TrackCompiler::cmdQuantize() {
     emit(OpQuantize, static_cast<std::uint8_t>(n));
 }
 
-// S, M and I are the PSG family's. They are taken on either family - a part
-// written for one device and played on another should not stop compiling - and
-// the driver of a device with no envelope drops them.
+// S and M are the SSGS's hardware envelope, I the panpot of the SSGS, OPLLEX and
+// OPL2EX. All three are taken on any device - a part written for one device and
+// played on another should not stop compiling - and the driver of a device
+// without the register drops them.
 void TrackCompiler::cmdShape() {
     long n = needNum();
     if (n > 15) fail("Sn is 0 to 15");
@@ -552,7 +552,7 @@ void TrackCompiler::cmdPeriod() {
 
 void TrackCompiler::cmdPan() {
     long n = needNum();
-    if (n > 15) fail("In is 0 to 15");
+    if (n > 255) fail("In is 0 to 255");
     emit(OpPan, static_cast<std::uint8_t>(n));
 }
 
@@ -627,7 +627,7 @@ void TrackCompiler::cmdReg() {
     }
 
     std::string why;
-    if (!regWritable(track_.device, reg, data, why)) fail(why);
+    if (!regWritable(track_.device, reg, why)) fail(why);
     emit(OpRegWrite, static_cast<std::uint8_t>(reg), static_cast<std::uint8_t>(data));
     emit(static_cast<std::uint8_t>(mask));
 }
@@ -646,6 +646,13 @@ void TrackCompiler::cmdAt() {
     if (c == 'v') {
         skip();
         long n = needNum();
+        // On the SSGS @Vn is not V's loudness but the channel's own linear
+        // volume register, so it has an event and a range of its own.
+        if (track_.device == DevSSGS) {
+            if (n > kSsgGainMax) fail("@Vn on the SSGS is 0 to " + std::to_string(kSsgGainMax));
+            emit(OpSsgGain, static_cast<std::uint8_t>(n));
+            return;
+        }
         if (n > kMixerMax) fail("@Vn is 0 to " + std::to_string(kMixerMax));
         emit(OpVolume, static_cast<std::uint8_t>(n));
         return;
@@ -1076,6 +1083,7 @@ void TrackCompiler::rhythmCommand(char c) {
         case 'v': cmdRhythmVolume(); return;
         case '@': cmdRhythmAt(); return;
         case 'y': cmdReg(); return;
+        case 'i': cmdPan(); return;
         case 'x': cmdXString(); return;
         default: break;
     }
@@ -1141,41 +1149,32 @@ bool TrackCompiler::run(TrackCode& out, Sequence& seq) {
 
 } // namespace
 
-// The registers each chip has, as basic-reference.md lists them. The ROM's own
-// compiler takes any number and leaves the refusal to the driver at play time,
-// where it is silent; here it is an error, as that document says.
-bool regWritable(Device dev, long reg, long data, std::string& why) {
+// The registers each chip has, as basic-reference.md lists them and the ROM's
+// compiler refuses the rest (REGCHK in its src/dev/devtab.asm).
+bool regWritable(Device dev, long reg, std::string& why) {
     switch (dev) {
         case DevSSGS:
-            if ((reg <= 0x0D) || (reg >= 0x20 && reg <= 0x2D)) return true;
-            why = "the SSGS takes Y registers $00-$0D and $20-$2D";
+            // The two sets, then the block's volumes and panpots less the
+            // unconnected number after each group of three. The GPIO ports
+            // 0E-0F and 1E-1F are left out: 1F drives the board's LEDs.
+            if ((reg & 0x0F) <= 0x0D && reg <= 0x1D) return true;
+            if (reg >= 0x20 && reg <= 0x2E && (reg & 0x03) != 0x03) return true;
+            why = "the SSGS takes Y registers $00-$0D, $10-$1D, $20-$22, $24-$26, $28-$2A and $2C-$2E";
             return false;
-        case DevOPLLEX1:
-        case DevOPLLEX2:
+        case DevOPLLEX:
             if ((reg <= 0x07) || (reg >= 0x0E && reg <= 0x18) || (reg >= 0x20 && reg <= 0x28) ||
-                (reg >= 0x30 && reg <= 0x38) || (reg >= 0x40 && reg <= 0x48)) {
+                (reg >= 0x30 && reg <= 0x38) || (reg >= 0x40 && reg <= 0x48) ||
+                (reg >= 0x50 && reg <= 0x58)) {
                 return true;
             }
-            why = "OPLLEX takes Y registers $00-$07, $0E-$18, $20-$28, $30-$38 and $40-$48";
+            why = "OPLLEX takes Y registers $00-$07, $0E-$18, $20-$28, $30-$38, $40-$48 and $50-$58";
             return false;
-        case DevOPL2EX1:
-        case DevOPL2EX2:
+        case DevOPL2EX:
             // 04H masks the interrupt sources. Unmasking the ADPCM ones leaves
             // the cartridge holding the interrupt line with nothing to clear it.
             if (reg != 0x04) return true;
             why = "OPL2EX register $04 cannot be written: it masks the interrupts";
             return false;
-        case DevDCSG1:
-        case DevDCSG2:
-            if (reg > 7) {
-                why = "DCSG takes Y registers 0 to 7";
-                return false;
-            }
-            if (data > 15) {
-                why = "a DCSG register holds 0 to 15";
-                return false;
-            }
-            return true;
         default:
             return true;
     }
@@ -1204,7 +1203,7 @@ bool compileSequence(const SourceFile& src, Sequence& out, Diagnostics& diag) {
         code.channel = t.channel;
 
         if (dialectFor(t.device, t.channel) == Dialect::Rhythm &&
-            (t.device == DevOPL2EX1 || t.device == DevOPL2EX2)) {
+            t.device == DevOPL2EX) {
             // OPL2EX has no rhythm voices of its own, so the sequence carries them.
             out.voices.needRhythmVoices();
         }

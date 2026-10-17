@@ -91,7 +91,7 @@ void decompiler(const fs::path& base) {
 
     const std::string bank =
         (fs::u8path(Y8MMLC_SOURCE_DIR) / "presets" / "wavs_y8950_adpcmb_excerpt.json").generic_u8string();
-    writeFile(dir / "psrc.mml", "#pcmbank " + bank + "\n#assign A OPL2EX1 9\nA @3 c\n");
+    writeFile(dir / "psrc.mml", "#pcmbank " + bank + "\n#assign A OPL2EX 9\nA @3 c\n");
     runExe(dir, Y8MMLC_EXE, quote(utf8(dir / "psrc.mml")) + " -o P");
     Run adpcm = runExe(dir, Y8MMLD_EXE, quote(utf8(dir / "P.SQ")));
     test::check(adpcm.exit == 0 && has(readFile(dir / "P.mml"), "#pcmbank P.PC\n"),
@@ -108,7 +108,7 @@ int main() {
     // A #pcmbank path that is not ASCII. The file is not an adpcm_packer bank, so
     // getting as far as complaining about its codec means it was opened.
     writeFile(base / u8("音.json"), "{\"codec\":\"x\"}\n");
-    writeFile(base / u8("bank.mml"), "#pcmbank 音.json\n#assign A OPL2EX1 9\nA @0 c\n");
+    writeFile(base / u8("bank.mml"), "#pcmbank 音.json\n#assign A OPL2EX 9\nA @0 c\n");
     Run bank = run(base, utf8(base / u8("bank.mml")));
     test::check(has(bank.err, "is codec 'x'") && !has(bank.err, "cannot open"),
                 "#pcmbank opens a file whose name is not ASCII: " + bank.err);

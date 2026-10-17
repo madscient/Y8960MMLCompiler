@@ -435,9 +435,12 @@ bool TrackWriter::common(std::size_t i) {
             }
             put("t" + std::to_string(e.arg[0]));
             return true;
+        case OpPan:
+            put("i" + std::to_string(e.arg[0]));
+            return true;
         case OpRegWrite: {
             std::string why;
-            if (!regWritable(chunk_.device, e.arg[0], e.arg[1], why)) {
+            if (!regWritable(chunk_.device, e.arg[0], why)) {
                 warn(e, "a register write is left out: " + why);
                 return true;
             }
@@ -506,11 +509,25 @@ void TrackWriter::melody(std::size_t i) {
             }
             if (v >= kVolumeOfV0 && (v - kVolumeOfV0) % kVolumePerV == 0) {
                 put("v" + std::to_string((v - kVolumeOfV0) / kVolumePerV));
+            } else if (chunk_.device == DevSSGS) {
+                // @V is B4 there, so V must say it. 81 reaches only the four bit
+                // level, and the V of the step it lands on plays the same.
+                const int down = std::min((kVolumeTop - v) / kVolumePerV, kVolMax);
+                warn(e, "volume " + std::to_string(v) + " has no @V on the SSGS; it is the V it plays as");
+                put("v" + std::to_string(kVolMax - down));
             } else {
                 put("@v" + std::to_string(v));
             }
             return;
         }
+        case OpSsgGain:
+            if (chunk_.device != DevSSGS) return;  // the other players ignore it
+            if (e.arg[0] > kSsgGainMax) {
+                warn(e, "a channel volume past " + std::to_string(kSsgGainMax) + " is left out");
+                return;
+            }
+            put("@v" + std::to_string(e.arg[0]));
+            return;
         case OpVoice: voice(e); return;
         case OpSeqVoice: seqVoice(e); return;
         case OpQuantize:
@@ -537,12 +554,11 @@ void TrackWriter::melody(std::size_t i) {
             return;
         }
         case OpSsgShape:
-        case OpPan:
             if (e.arg[0] > 15) {
                 warn(e, "a value past 15 is left out");
                 return;
             }
-            put((e.op == OpSsgShape ? "s" : "i") + std::to_string(e.arg[0]));
+            put("s" + std::to_string(e.arg[0]));
             return;
         case OpSsgPeriod:
             if (e.word(0) == 0) {
@@ -1070,9 +1086,10 @@ bool decompileBlock(const std::vector<std::uint8_t>& b, const DecompileOptions& 
             }
             shared.envelopes[b[body]] = env;
         } else if (type >= kChunkDeviceOwned && type < kChunkSkippable) {
-            // It belongs to the device its first byte names. One this MML
-            // cannot write goes with that device's tracks, left out above.
-            if (len == 0 || b[body] < kDeviceCount) {
+            // It belongs to the device its first byte names. One past 7 goes
+            // with that device's tracks, left out above. 0-7 is refused as
+            // the ROM's reader refuses it, the unassigned 4-7 included.
+            if (len == 0 || b[body] < kFormatDeviceForeign) {
                 return fail("chunk type " + std::to_string(type) +
                             " is not one this reader knows for the device it names");
             }

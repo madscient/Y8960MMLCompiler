@@ -44,7 +44,7 @@
 
     "device-symbol": {
       "comment": "tests/grammar_test.cpp checks the names in the (?:...) group against the compiler's device table. Keep that group's shape.",
-      "match": "(?i)\\b(?:SSGS|OPLLEX1|OPLLEX2|OPL2EX1|OPL2EX2|DCSG1|DCSG2|SCC)\\b",
+      "match": "(?i)\\b(?:SSGS|OPLLEX|OPL2EX|SCC)\\b",
       "name": "support.constant.device.y8960mml"
     },
 

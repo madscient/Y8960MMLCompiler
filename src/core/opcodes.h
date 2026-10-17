@@ -27,7 +27,7 @@ enum Op : std::uint8_t {
     OpTempo = 0x84,
     OpSeqVoice = 0x85,  // the slot in this sequence's own voice set
     OpSegno = 0x86,     // a mark with its number; nothing plays it
-    OpPan = 0x87,       // 0-15; of the devices here only the SSGS has one
+    OpPan = 0x87,       // the chip's panpot register: 1 left, 128 centre, 255 right, 0 centre
     OpNoteAbs = 0xC0,   // note number, then a length
     OpBend = 0xD0,
     OpBendRel = 0xD1,
@@ -52,6 +52,7 @@ enum Op : std::uint8_t {
     OpSsgShape = 0xB0,
     OpSoftEnv = 0xB2,    // the software envelope's number, 0 for none
     OpSccVolTable = 0xB3,  // 1: the SCC turns a level through its table, 0: not
+    OpSsgGain = 0xB4,    // the SSGS channel's linear volume register, apart from 81
     OpSsgPeriod = 0xDC,  // 16 bits
 };
 
@@ -74,6 +75,8 @@ constexpr int kCentMax = 1200;
 constexpr int kVolumeTop = 127;
 constexpr int kVolumeOfV0 = 67;
 constexpr int kVolumePerV = 4;
+constexpr int kVolMax = 15;  // Vn
+constexpr int kSsgGainMax = 128;  // @Vn on the SSGS, the register's own range
 constexpr int kMarkCountMin = 1;  // (TC)n and (FINE)n: 0 is not to be written
 constexpr int kLoopDepth = 4;
 constexpr int kSegnoMax = 4;    // (*)0 to (*)3

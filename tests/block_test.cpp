@@ -41,18 +41,18 @@ void emptyTrackIsWritten() {
     Diagnostics diag;
     CompileResult out;
     // A track with a channel and no MML still carries its assignment.
-    test::check(compileText("t.mml", "#assign B DCSG2 3\n", out, diag), "an empty track compiles");
+    test::check(compileText("t.mml", "#assign B SCC 4\n", out, diag), "an empty track compiles");
     test::checkBytes("an empty track", out.sequence,
                      bytes({0x59, 0x38, 0x53, 0x51, 0x01, 0x0E, 0x00,
                             0x00, 0x04, 0x00,
-                            0x01, 0x06, 0x03,              // track 1, DCSG2, channel 3
+                            0x01, 0x03, 0x04,              // track 1, SCC, channel 4
                             0xFF}));                       // the terminator counts too
 }
 
 void voiceChunks() {
     Diagnostics diag;
     CompileResult out;
-    test::check(compileText("t.mml", "#assign A OPL2EX1 0\nA @1C4\n", out, diag),
+    test::check(compileText("t.mml", "#assign A OPL2EX 0\nA @1C4\n", out, diag),
                 "an FM track compiles");
     // The track chunk, then the record the sequence carries for @1.
     const std::vector<std::uint8_t>& b = out.sequence;
@@ -118,7 +118,7 @@ void packing() {
     CompileResult out;
     test::check(compileText("t.mml",
                             "#voice opl @130 $8E,$FE, $18,$DF,$6A,$01,$04, $00,$F8,$6D,$01,$07\n"
-                            "#assign A OPLLEX1 0\n#assign B OPL2EX2 0\nA @130C4\nB @130C4\n",
+                            "#assign A OPLLEX 0\n#assign B OPL2EX 1\nA @130C4\nB @130C4\n",
                             out, diag),
                 "an OPL #voice on both chips compiles");
     const std::vector<std::uint8_t>& b = out.sequence;
@@ -132,7 +132,7 @@ void packing() {
 void rhythmVoices() {
     Diagnostics diag;
     CompileResult out;
-    test::check(compileText("t.mml", "#assign A OPL2EX1 10\nA B8\n", out, diag),
+    test::check(compileText("t.mml", "#assign A OPL2EX 10\nA B8\n", out, diag),
                 "an OPL2EX rhythm track compiles");
     // OPL2EX has no rhythm voices of its own, so slots 32-34 come along.
     std::size_t at = 7 + 3 + 3 + 6;
@@ -145,7 +145,7 @@ void rhythmVoices() {
 
     Diagnostics odiag;
     CompileResult oout;
-    test::check(compileText("t.mml", "#assign A OPLLEX1 10\nA B8\n", oout, odiag),
+    test::check(compileText("t.mml", "#assign A OPLLEX 10\nA B8\n", oout, odiag),
                 "an OPLLEX rhythm track compiles");
     test::check(oout.sequence.size() == 7 + 3 + 3 + 6,
                 "OPLLEX has its own rhythm sounds, so none are carried");
@@ -158,7 +158,7 @@ void envelopeChunks() {
     test::check(compileText("t.mml",
                             "#env MUSICA @E1 16,20,8,10\n#env MUSICA @E2 1,2,3,4\n"
                             "#env RAW @E3 $22,$12,8,$31\n"
-                            "#assign A SSGS 0\n#assign B OPL2EX1 0\n"
+                            "#assign A SSGS 0\n#assign B OPL2EX 0\n"
                             "A @E1C4@E0C4\nB @E3C4\n",
                             out, diag),
                 "tracks with @E compile");
@@ -166,7 +166,7 @@ void envelopeChunks() {
         0x59, 0x38, 0x53, 0x51, 0x01, 0x39, 0x00,
         0x00, 0x0C, 0x00, 0x00, 0x00, 0x00,              // track 0, SSGS, channel 0
         0xB2, 0x01, 0x00, 0x30, 0xB2, 0x00, 0x00, 0x30, 0xFF,
-        0x00, 0x08, 0x00, 0x01, 0x03, 0x00,              // track 1, OPL2EX1, channel 0
+        0x00, 0x08, 0x00, 0x01, 0x02, 0x00,              // track 1, OPL2EX, channel 0
         0x85, 0x00, 0x00, 0x30, 0xFF};
     // Then B's default voice, then chunk 04 for envelope 1 alone.
     test::check(out.sequence.size() == tracks.size() + 3 + 13 + 8,
@@ -180,7 +180,7 @@ void envelopeChunks() {
     // RAW goes in as written, a byte no MUSICA rate names included.
     Diagnostics rdiag;
     CompileResult rout;
-    test::check(compileText("t.mml", "#env RAW @E3 $22,$12,8,$31\n#assign A DCSG1 0\nA @E3C4\n", rout,
+    test::check(compileText("t.mml", "#env RAW @E3 $22,$12,8,$31\n#assign A SSGS 0\nA @E3C4\n", rout,
                             rdiag),
                 "a RAW envelope compiles");
     test::checkBytes("the RAW chunk 04",
@@ -210,7 +210,7 @@ void pcmFile() {
     // The bank on its own gives entry 0 the number 0; #adpcm moves it to 3.
     writeText("y8mmlc_test0.mml",
               "#pcmbank y8mmlc_test.json\n"
-              "#assign A OPL2EX1 9\n"
+              "#assign A OPL2EX 9\n"
               "A @0 O5 E4\n");
     Diagnostics bare;
     CompileResult bareOut;
@@ -223,7 +223,7 @@ void pcmFile() {
     writeText("y8mmlc_test.mml",
               "#pcmbank y8mmlc_test.json\n"
               "#adpcm 3 bd\n"
-              "#assign A OPL2EX1 9\n"
+              "#assign A OPL2EX 9\n"
               "A @3 O5 E4\n");
 
     Diagnostics diag;
@@ -257,7 +257,7 @@ void pcmFile() {
     writeText("y8mmlc_test2.mml",
               "#pcmbank y8mmlc_test.json\n"
               "#adpcm 3 bd\n"
-              "#assign A OPL2EX1 9\n"
+              "#assign A OPL2EX 9\n"
               "A @4 O5 E4\n");
     Diagnostics unbound;
     CompileResult out2;
@@ -267,7 +267,7 @@ void pcmFile() {
     writeText("y8mmlc_test3.mml",
               "#pcmbank y8mmlc_test.json\n"
               "#adpcm 3 nosuch\n"
-              "#assign A OPL2EX1 9\n"
+              "#assign A OPL2EX 9\n"
               "A @3 O5 E4\n");
     Diagnostics missing;
     CompileResult out3;

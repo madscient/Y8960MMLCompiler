@@ -37,9 +37,9 @@ y8mmlc song.mml
 ```
 ; コメントは行の先頭に置く
 
-#assign A OPL2EX1 0
+#assign A OPL2EX 0
 #assign B SCC 0
-#assign C OPL2EX1 10
+#assign C OPL2EX 10
 
 #define TEMPO 132
 #define RIFF  "cdefgab>c<"
@@ -114,7 +114,7 @@ y8mmld SONG.SQ
 ```
 
 `@128`-`@191` の FM 音色と `@16`-`@31` の SCC 波形は `#voice` と `#wave` で、
-SSGS・SCC・DCSG のソフトウェアエンベロープ `@E1`-`@E31` は `#env` で作る。
+SSGS・SCC のソフトウェアエンベロープ `@E1`-`@E31` は `#env` で作る。
 長い行は末尾の `\` で折り返せる。
 
 ```

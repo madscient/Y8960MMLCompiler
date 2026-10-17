@@ -232,28 +232,31 @@ void compilerOutputComesBack() {
         {"notes and the running state",
          "#assign A SSGS 0\n"
          "A t150 v12 @v100 o3 l8 c d+ e- f c- b+ > c < c o9 > c o0 < c n36 l4. n40 n127 r0 r4 c1.\n"
-         "A c0 @w8 p100 @p-50 ~ e4 ~-200 g4 & g8 ~0 a8 s8 m300 i3 y7,56 y8,15,240 @18 q3 c4 q8\n"},
+         "A c0 @w8 p100 @p-50 ~ e4 ~-200 g4 & g8 ~0 a8 s8 m300 i3 y7,56 y8,15,240 @18 q3 c4 q8\n"
+         "A @v128 @v0 i255 i0 y$1D,1 y$2E,2 c\n"
+         "#assign B OPLLEX 0\nB i128 y$58,9 c\n"},
         {"loops, blocks and marks",
-         "#assign A OPLLEX1 0\n"
+         "#assign A OPLLEX 0\n"
          "A |: c [1 d ] [2 e ] :|2 (*)1 f (tc)3 g (ds)1 (coda) a (fine)3 |: |: c :|3 :|0\n"
-         "#assign B OPLLEX1 1\nB (*) c (*) d (ds) (dc) (ds)2 e (tc) (tc)255\n"},
+         "#assign B OPLLEX 1\nB (*) c (*) d (ds) (dc) (ds)2 e (tc) (tc)255\n"},
         {"SCC waves",
          "#wave 20 1,2,3,4,5,6,7,8,9,10,11,12,13,14,15,16,17,18,19,20,21,22,23,24,25,26,27,28,"
          "29,30,31,32\n#assign A SCC 0\n#assign B SCC 1\nA @3 c @20 d @3 e @40 f @g0 g @g1 a\n"
          "B @20 c @0 d\n"},
         {"FM voices on two chips",
          "#voice AUDIO @150 \"Mine    \",1,2,3,4,5,6,7,8,9,10,11,12,13,14,15,16,17,18,19,20,21,22,23,24\n"
-         "#assign A OPLLEX1 0\n#assign B OPL2EX2 3\nA @70 c @3 d @150 e @127 f @80 g\n"
+         "#assign A OPLLEX 0\n#assign B OPL2EX 3\nA @70 c @3 d @150 e @127 f @80 g\n"
          "B @150 c @63 d @65 c\n"},
         {"software envelopes",
-         "#env MUSICA @E2 1,2,3,4\n#env RAW @E9 $22,$1F,15,$F1\n#assign A DCSG1 0\n#assign B DCSG1 3\n"
-         "#assign C OPLLEX2 0\nA @e2 c @e0 d @e9 e\nB @2 c @e9 d\nC @e2 c\n"},
+         "#env MUSICA @E2 1,2,3,4\n#env RAW @E9 $22,$1F,15,$F1\n#assign A SSGS 0\n#assign B SCC 3\n"
+         "#assign C OPLLEX 0\nA @e2 c @e0 d @e9 e\nB @2 c @e9 d\nC @e2 c\n"},
         {"rhythm",
-         "#assign A OPL2EX1 10\nA v12 @a9 @v64 bs!h8 h8 s!8 |: b8 [1 m!c ] [2 c!4 ] :|2 r4 b0 r8\n"
-         "#assign B OPLLEX2 10\nB bsmch16 (*)2 b!s!m!c!h!4 (ds)2\n"
-         "#assign C OPL2EX2 10\nC @b3 @s5 @m7 @c9 @h11 v10 @s2 b0 y14,32 @w8 h8 m0 r16 c0 @w16\n"},
+         "#assign A OPL2EX 10\nA v12 @a9 @v64 bs!h8 h8 s!8 |: b8 [1 m!c ] [2 c!4 ] :|2 r4 b0 r8\n"
+         "#assign B OPLLEX 10\nB bsmch16 (*)2 b!s!m!c!h!4 (ds)2 i1 i255\n"},
+        {"rhythm with the instruments' own volumes",
+         "#assign C OPL2EX 10\nC @b3 @s5 @m7 @c9 @h11 v10 @s2 b0 y14,32 @w8 h8 m0 r16 c0 @w16 i64\n"},
         {"N with a length of 0", "#define Z 0\n#assign A SSGS 0\nA n40=Z; @w4 r4 l8 n41 n42=Z; @w8 r0\n"},
-        {"a track with nothing in it", "#assign C SCC 4\n#assign P DCSG2 3\nP c\n"},
+        {"a track with nothing in it", "#assign C SCC 4\n#assign P SSGS 5\nP c\n"},
         {"meta information",
          "#title \"My \"best\" song\"\n#author \"Someone\"\n#pitch 442.5\n#assign A SSGS 0\nA c\n"},
     };
@@ -284,7 +287,7 @@ void lengthsAreSplit() {
     sameSound("an N of 100 ticks", n);
 
     // 8191 ticks, the most Y8960SeqConverter puts in one event, under Q7.
-    Trip longest = trip("8191 ticks", block(5, 0, bytes({0x83, 0x07, 0x09, 0x9F, 0xFF, 0xFF})));
+    Trip longest = trip("8191 ticks", block(0, 0, bytes({0x83, 0x07, 0x09, 0x9F, 0xFF, 0xFF})));
     sameSound("8191 ticks", longest);
 
     // A rhythm hit of 51 ticks becomes the hit and rests; nothing else changes.
@@ -346,7 +349,7 @@ void unsayable() {
                 "an unknown chunk below 80 is not read");
 }
 
-// Y8SQ as the ROM's commit 8fa6de3 has it: devices past 7, chunks that belong
+// Y8SQ as the ROM's commit e72f191 has it: devices past 3, chunks that belong
 // to a device, 82 on FM counted from 0, and chunk 01 as 12 bytes.
 void formatEdges() {
     DecompileOptions opt;
@@ -369,12 +372,24 @@ void formatEdges() {
                         mml.find("#assign B") == std::string::npos,
                     "only the SSGS track is assigned\n" + mml);
     }
+    // 4-7 name no chip: a track there is left out as one on OPM is.
+    {
+        Diagnostics diag;
+        std::vector<std::uint8_t> unused = withChunk(block(0, 0, bytes({0x00, 0x30, 0xFF})), 0x00,
+                                                     bytes({0x01, 0x05, 0x00, 0x00, 0x30, 0xFF}));
+        test::check(decompileBlock(unused, opt, mml, diag) && diag.all().size() == 1 &&
+                        mml.find("#assign B") == std::string::npos,
+                    "a track on device 5 is left out with a warning\n" + mml);
+    }
     {
         Diagnostics diag;
         std::vector<std::uint8_t> ours(2 + 32, 0);
-        ours[0] = 0x03;
+        ours[0] = 0x02;
         test::check(!decompileBlock(withChunk(block(0, 0, bytes({0xFF})), 0x40, ours), opt, mml, diag),
                     "a chunk 40 on OPL2EX is not read");
+        ours[0] = 0x07;
+        test::check(!decompileBlock(withChunk(block(0, 0, bytes({0xFF})), 0x40, ours), opt, mml, diag),
+                    "a chunk 40 on device 7 is not read");
         test::check(!decompileBlock(withChunk(block(0, 0, bytes({0xFF})), 0x41, {}), opt, mml, diag),
                     "an empty chunk 41 is not read");
         test::check(!decompileBlock(withChunk(block(0, 0, bytes({0xFF})), 0x01,
@@ -399,20 +414,25 @@ void formatEdges() {
                     "82 40, the user voice, is warned about");
     }
 
-    // B1 was the SSGS pan and is gone; 87 is the pan now.
+    // B1 was the SSGS pan and is gone; 87 is the pan now, 0-255.
     {
         Diagnostics diag;
-        test::check(decompileBlock(block(0, 0, bytes({0xB1, 0x03, 0x87, 0x05, 0x00, 0x30, 0xFF})), opt,
-                                   mml, diag) &&
-                        diag.all().size() == 1 && mml.find("i5") != std::string::npos &&
+        test::check(decompileBlock(block(0, 0, bytes({0xB1, 0x03, 0x87, 0x05, 0x87, 0xC8, 0x00, 0x30, 0xFF})),
+                                   opt, mml, diag) &&
+                        diag.all().size() == 1 && mml.find("i5 i200") != std::string::npos &&
                         mml.find("i3") == std::string::npos,
                     "B1 is left out and 87 is I\n" + mml);
+        Diagnostics rhythm;
+        test::check(decompileBlock(block(1, 10, bytes({0x87, 0x40, 0xC8, 0x10, 0x18, 0xFF})), opt, mml,
+                                   rhythm) &&
+                        rhythm.all().empty() && mml.find("i64") != std::string::npos,
+                    "87 on a rhythm track is I\n" + mml);
     }
 
     // B3 past 1 plays as 0.
     {
         Diagnostics diag;
-        test::check(decompileBlock(block(7, 0, bytes({0xB3, 0x02, 0xFF})), opt, mml, diag) &&
+        test::check(decompileBlock(block(3, 0, bytes({0xB3, 0x02, 0xFF})), opt, mml, diag) &&
                         diag.all().size() == 1 && mml.find("@g0") != std::string::npos,
                     "B3 02 is @G0 with a warning\n" + mml);
     }
@@ -434,7 +454,7 @@ void formatEdges() {
         v[1] = 0xF3;
         v[1 + 6] = 0x04;
         Trip t = trip("a voice BASIC cannot hold",
-                      withChunk(block(3, 0, bytes({0x85, 0x00, 0x00, 0x30, 0xFF})), 0x01, v));
+                      withChunk(block(2, 0, bytes({0x85, 0x00, 0x00, 0x30, 0xFF})), 0x01, v));
         test::checkBytes("a voice BASIC cannot hold: the first block comes back", t.sq1, t.sq0);
         test::check(t.mml1.find("#voice OPL @128 $F3,$00, \\") != std::string::npos,
                     "the voice is written packed\n" + t.mml1);
@@ -443,21 +463,39 @@ void formatEdges() {
     // 81 comes back as V where it is 4n + 67, and as @V otherwise.
     {
         Diagnostics diag;
-        test::check(decompileBlock(block(0, 0, bytes({0x81, 0x63, 0x81, 0x64, 0xFF})), opt, mml, diag) &&
+        test::check(decompileBlock(block(1, 0, bytes({0x81, 0x63, 0x81, 0x64, 0xFF})), opt, mml, diag) &&
                         mml.find("v8 @v100") != std::string::npos,
                     "81 63 is V8 and 81 64 is @V100\n" + mml);
+    }
+    // On the SSGS @V is B4, so an 81 off the 4n + 67 steps is the V it plays
+    // as: 15 - min((127 - v) / 4, 15).
+    {
+        Diagnostics diag;
+        test::check(decompileBlock(block(0, 0, bytes({0x81, 0x63, 0x81, 0x64, 0x81, 0x44, 0x81, 0x10,
+                                                      0xB4, 0x80, 0xFF})),
+                                   opt, mml, diag) &&
+                        diag.all().size() == 3 && mml.find("v8 v9 v1 v0 @v128") != std::string::npos,
+                    "81 64 on the SSGS is V9, 81 44 V1, 81 10 V0, and B4 is @V\n" + mml);
+        Diagnostics past;
+        test::check(decompileBlock(block(0, 0, bytes({0xB4, 0x81, 0xFF})), opt, mml, past) &&
+                        past.all().size() == 1 && mml.find("@v") == std::string::npos,
+                    "B4 past 128 is left out\n" + mml);
+        Diagnostics other;
+        test::check(decompileBlock(block(1, 0, bytes({0xB4, 0x40, 0xFF})), opt, mml, other) &&
+                        other.all().empty() && mml.find("@v") == std::string::npos,
+                    "B4 off the SSGS is not read\n" + mml);
     }
 
     // Chunk 04: MUSICA when every rate is one of the 33, RAW otherwise.
     {
         Trip t = trip("an envelope of MUSICA rates",
-                      withChunk(block(5, 0, bytes({0xB2, 0x01, 0x00, 0x30, 0xFF})), 0x04,
+                      withChunk(block(0, 0, bytes({0xB2, 0x01, 0x00, 0x30, 0xFF})), 0x04,
                                 bytes({0x01, 0x11, 0x12, 0x08, 0x31})));
         test::check(t.mml1.find("#env MUSICA @E1 16,20,8,10\n") != std::string::npos,
                     "11 12 08 31 is MUSICA 16,20,8,10\n" + t.mml1);
         test::checkBytes("an envelope of MUSICA rates: the first block comes back", t.sq1, t.sq0);
         Trip r = trip("an envelope of raw rates",
-                      withChunk(block(5, 0, bytes({0xB2, 0x01, 0x00, 0x30, 0xFF})), 0x04,
+                      withChunk(block(0, 0, bytes({0xB2, 0x01, 0x00, 0x30, 0xFF})), 0x04,
                                 bytes({0x01, 0x22, 0x12, 0x08, 0x31})));
         test::check(r.mml1.find("#env RAW @E1 $22,$12,8,$31\n") != std::string::npos,
                     "22 is no MUSICA rate, so it is RAW\n" + r.mml1);
@@ -465,7 +503,7 @@ void formatEdges() {
         // A half of 0 and an SL past 15 may not be written; the nearest stands
         // in. 20 02 14 31 becomes 21 12 0F 31, which MUSICA names.
         Diagnostics diag;
-        test::check(decompileBlock(withChunk(block(5, 0, bytes({0xB2, 0x01, 0x00, 0x30, 0xFF})), 0x04,
+        test::check(decompileBlock(withChunk(block(0, 0, bytes({0xB2, 0x01, 0x00, 0x30, 0xFF})), 0x04,
                                              bytes({0x01, 0x20, 0x02, 0x14, 0x31})),
                                    opt, mml, diag) &&
                         diag.all().size() == 1 && mml.find("#env MUSICA @E1 12,20,15,10\n") != std::string::npos,
@@ -524,7 +562,7 @@ void adpcm() {
         (fs::u8path(Y8MMLC_SOURCE_DIR) / "presets" / "wavs_y8950_adpcmb_excerpt.json").generic_u8string();
     std::vector<std::uint8_t> pc0;
     std::vector<std::uint8_t> sq0 =
-        compileOk("an ADPCM track", "#pcmbank " + bank + "\n#assign A OPL2EX1 9\nA c @2 d @35 e\n",
+        compileOk("an ADPCM track", "#pcmbank " + bank + "\n#assign A OPL2EX 9\nA c @2 d @35 e\n",
                   "t.mml", &pc0);
     writeBytes(dir / "T.PC", pc0);
 
@@ -549,7 +587,7 @@ void adpcm() {
     Diagnostics named;
     CompileResult r;
     test::check(!compileText((dir / "u.mml").generic_u8string(),
-                             "#pcmbank T.PC\n#adpcm 3 snare\n#assign A OPL2EX1 9\nA c\n", r, named),
+                             "#pcmbank T.PC\n#adpcm 3 snare\n#assign A OPL2EX 9\nA c\n", r, named),
                 "#adpcm with a Y8PC is refused");
     fs::remove_all(dir);
 }

@@ -8,15 +8,15 @@ namespace y8 {
 // The device numbers MASSIGN takes. See bytecode.md, "デバイス番号とチャンネル番号".
 enum Device : std::uint8_t {
     DevSSGS = 0,
-    DevOPLLEX1 = 1,
-    DevOPLLEX2 = 2,
-    DevOPL2EX1 = 3,
-    DevOPL2EX2 = 4,
-    DevDCSG1 = 5,
-    DevDCSG2 = 6,
-    DevSCC = 7,
-    kDeviceCount = 8,
+    DevOPLLEX = 1,
+    DevOPL2EX = 2,
+    DevSCC = 3,
+    kDeviceCount = 4,
 };
+
+// 4-7 name no chip and 8 up chips no Y8960 has. Y8SQ still numbers them, so a
+// block may carry them; this MML writes none of them.
+constexpr int kFormatDeviceForeign = 8;
 
 // Which of the two event tables a track is written in. It follows from the
 // device alone, which is why a track's device has to be known before its MML
@@ -43,7 +43,7 @@ Family deviceFamily(Device d);
 bool deviceHasChannel(Device d, int channel);
 Dialect dialectFor(Device d, int channel);
 
-// Accepts "OPL2EX1" and "3" alike. Returns false when neither names a device.
+// Accepts "OPL2EX" and "2" alike. Returns false when neither names a device.
 bool parseDevice(const std::string& text, Device& out);
 
 } // namespace y8

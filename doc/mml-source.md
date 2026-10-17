@@ -30,8 +30,8 @@ A  O4 L8 cdefgab>c \
 
 ```
 ; ---- 例 ----
-#assign A OPL2EX1 0
-#assign B OPL2EX1 1
+#assign A OPL2EX 0
+#assign B OPL2EX 1
 #assign C SSGS 0
 
 #define TEMPO 140
@@ -79,24 +79,20 @@ A  O4 L8 cdefgab>c
 | 番号 | シンボル | チャンネル | 内容 |
 |--:|---|---|---|
 | 0 | `SSGS` | 0-5 | |
-| 1 | `OPLLEX1` | 0-8, 10 | 0-8 FM ／ 10 リズム |
-| 2 | `OPLLEX2` | 0-8, 10 | 同上 |
-| 3 | `OPL2EX1` | 0-10 | 0-8 FM ／ 9 ADPCM ／ 10 リズム |
-| 4 | `OPL2EX2` | 0-10 | 同上 |
-| 5 | `DCSG1` | 0-3 | 0-2 矩形波 ／ 3 ノイズ |
-| 6 | `DCSG2` | 0-3 | 同上 |
-| 7 | `SCC` | 0-4 | |
+| 1 | `OPLLEX` | 0-8, 10 | 0-8 FM ／ 10 リズム |
+| 2 | `OPL2EX` | 0-10 | 0-8 FM ／ 9 ADPCM ／ 10 リズム |
+| 3 | `SCC` | 0-4 | |
 
 ```
-#assign A OPL2EX1 0
+#assign A OPL2EX 0
 ; 番号で書いても同じ
-#assign B 3 1
+#assign B 2 1
 ```
 
 - **同じデバイスの同じチャンネルを2つのトラックに割り当てるとエラー。**
   1つのチャンネルを鳴らせるのは1トラックだけ
-- **1つのブロックで、チャンネル 10 と 6-8 は同時に使えない。** チャンネル 10 は
-  リズム音で、鳴らすあいだチャンネル 6-8 を使う
+- **OPLLEX と OPL2EX のそれぞれで、チャンネル 10 と 6-8 は同時に使えない。**
+  チャンネル 10 はリズム音で、鳴らすあいだチャンネル 6-8 を使う
 - **`#assign` を書いて MML を1行も書かないトラックも、割り当てごと出力に入る。**
   まだ書いていないパートの割り当てが残る
 
@@ -281,7 +277,7 @@ MSX-MUSIC と MSX-AUDIO の拡張BASIC の音色データ（`VOICE COPY` が扱�
 #env <形式> @E<番号 1-31> <AR>,<DR>,<SL>,<RR>
 ```
 
-`ENV COPY` が作るエンベロープにあたるもので、SSGS・SCC・DCSG のトラックの
+`ENV COPY` が作るエンベロープにあたるもので、SSGS・SCC のトラックの
 `@E`*n* がその番号で選ぶ。番号には MML と同じ `@E` を付ける。動きと4つの値の
 意味は [`mml-reference.md`](mml-reference.md) の「ソフトウェアエンベロープ」にある。
 
@@ -317,7 +313,7 @@ A @E1 V15 L2 O4 C R1
 - 値は10進か `$hh` で書く
 - **範囲を超えるとエラー。** `MUSICA` の速さは 0〜32、`RAW` の速さはコマと変化が
   どちらも 1〜15、SL はどちらも 0〜15
-- **シーケンスに入るのは、SSGS・SCC・DCSG のトラックが `@E` で選んだ番号だけ。**
+- **シーケンスに入るのは、SSGS・SCC のトラックが `@E` で選んだ番号だけ。**
   作っただけで使わない番号は入らない
 - 同じ番号を2度書くとエラー。`@E0` はエンベロープ無しなので、0 は作れない
 
@@ -342,7 +338,7 @@ Y8PC ファイル（`.PC`）を指す。JSON なら**同じ茎の `.bin`**（ダ
 ```
 ; entries が bassdrum, snare, hihat の順なら、そのまま 0, 1, 2 で鳴る
 #pcmbank drums.json
-#assign  D OPL2EX1 9
+#assign  D OPL2EX 9
 D  L8 @0 c @1 c @2 c
 ```
 
@@ -363,7 +359,7 @@ D  L8 @0 c @1 c @2 c
 ```
 ; y8mmlc が前に書き出した SONG.PC をそのまま使う
 #pcmbank SONG.PC
-#assign  D OPL2EX1 9
+#assign  D OPL2EX 9
 D  L8 @0 c @5 c
 ```
 
@@ -381,7 +377,7 @@ D  L8 @0 c @5 c
 #adpcm   10 bassdrum
 #adpcm   11 snare
 
-#assign D OPL2EX1 9
+#assign D OPL2EX 9
 D  L8 @10 c @11 c @10 c @11 c
 ```
 
