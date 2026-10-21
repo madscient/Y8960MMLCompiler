@@ -563,6 +563,8 @@ void TrackWriter::melody(std::size_t i) {
             return;
         }
         case OpSsgShape:
+            // Not in the FM family's map, and the compiler drops S and M there.
+            if (family_ != Family::Psg) return;
             if (e.arg[0] > 15) {
                 warn(e, "a value past 15 is left out");
                 return;
@@ -570,6 +572,7 @@ void TrackWriter::melody(std::size_t i) {
             put("s" + std::to_string(e.arg[0]));
             return;
         case OpSsgPeriod:
+            if (family_ != Family::Psg) return;
             if (e.word(0) == 0) {
                 warn(e, "an envelope period of 0 is left out");
                 return;

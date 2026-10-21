@@ -516,6 +516,24 @@ void formatEdges() {
                         other.all().empty() && mml.find("@v") == std::string::npos,
                     "B4 off the SSGS is not read\n" + mml);
     }
+    // B0 and DC are the PSG family's: S and M on the SSGS and the SCC, nothing
+    // on the FM family, where the compiler would drop them again.
+    {
+        const auto sm = bytes({0xB0, 0x08, 0xDC, 0x2C, 0x01, 0x0C, 0x30, 0xFF});
+        for (int dev : {0, 3}) {
+            Diagnostics diag;
+            test::check(decompileBlock(block(dev, 0, sm), opt, mml, diag) && diag.all().empty() &&
+                            mml.find("s8 m300") != std::string::npos,
+                        "B0 DC on device " + std::to_string(dev) + " are S and M\n" + mml);
+        }
+        for (int dev : {1, 2, 4}) {
+            Diagnostics diag;
+            test::check(decompileBlock(block(dev, 0, sm), opt, mml, diag) && diag.all().empty() &&
+                            mml.find("s8") == std::string::npos &&
+                            mml.find("m300") == std::string::npos,
+                        "B0 DC on device " + std::to_string(dev) + " are not read\n" + mml);
+        }
+    }
 
     // Chunk 04: MUSICA when every rate is one of the 33, RAW otherwise.
     {

@@ -418,6 +418,23 @@ void ssgCommands() {
     test::checkBytes("I on OPLLEX rhythm", track("OPLLEX 10", "I1B8"),
                      bytes({0x87, 0x01, 0xA8, 0x00, 0xC8, 0x10, 0x18, 0xFF}));
     test::checkBytes("I on OPL2EX rhythm", track("OPL2EX 10", "I200"), bytes({0x87, 0xC8, 0xFF}));
+
+    // ROM: mtrk's S8M300R4 on five devices. B0 and DC are in the PSG family's
+    // map only, so the FM devices read S and M and drop them; the SCC's driver
+    // drops them instead.
+    const auto withSM = bytes({0xB0, 0x08, 0xDC, 0x2C, 0x01, 0x0C, 0x30, 0xFF});
+    const auto withoutSM = bytes({0x0C, 0x30, 0xFF});
+    test::checkBytes("S8M300R4 on the SSGS", track("SSGS 5", "S8M300R4"), withSM);
+    test::checkBytes("S8M300R4 on the SCC", track("SCC 4", "S8M300R4"), withSM);
+    test::checkBytes("S8M300R4 on OPLLEX", track("OPLLEX 8", "S8M300R4"), withoutSM);
+    test::checkBytes("S8M300R4 on OPL2EX", track("OPL2EX 8", "S8M300R4"), withoutSM);
+    test::checkBytes("S8M300R4 on OPM", track("OPM 7", "S8M300R4"), withoutSM);
+    test::checkBytes("S8M300R4 on ADPCM", track("OPL2EX 9", "S8M300R4"), withoutSM);
+    // Dropped, but still range checked, as the ROM does.
+    test::check(refused("OPLLEX 0", "S16"), "S16 is refused on FM too");
+    test::check(refused("OPM 0", "M0"), "M0 is refused on FM too");
+    test::check(refused("SSGS 0", "S16"), "S16 is refused");
+    test::check(refused("SSGS 0", "M0"), "M0 is refused");
 }
 
 void volumeTable() {

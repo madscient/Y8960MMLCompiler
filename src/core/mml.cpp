@@ -537,19 +537,22 @@ void TrackCompiler::cmdQuantize() {
     emit(OpQuantize, static_cast<std::uint8_t>(n));
 }
 
-// S and M are the SSGS's hardware envelope, I the panpot of the SSGS, OPLLEX and
-// OPL2EX. All three are taken on any device - a part written for one device and
-// played on another should not stop compiling - and the driver of a device
-// without the register drops them.
+// S and M are the SSGS's hardware envelope, I the panpot of every device. All
+// three are taken on any device - a part written for one device and played on
+// another should not stop compiling. B0 and DC are in the PSG family's map only,
+// so on the FM family S and M are range checked and dropped here, as @En is; on
+// the SCC they go out and its driver drops them. The ROM does the same.
 void TrackCompiler::cmdShape() {
     long n = needNum();
     if (n > 15) fail("Sn is 0 to 15");
+    if (family_ != Family::Psg) return;
     emit(OpSsgShape, static_cast<std::uint8_t>(n));
 }
 
 void TrackCompiler::cmdPeriod() {
     long n = needNum();
     if (n < 1 || n > 65535) fail("Mn is 1 to 65535");
+    if (family_ != Family::Psg) return;
     emit(OpSsgPeriod);
     emitWord(static_cast<std::uint16_t>(n));
 }
