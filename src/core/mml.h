@@ -24,6 +24,9 @@ struct TrackCode {
 struct Sequence {
     std::array<TrackCode, kTrackCount> tracks;
     VoiceSet voices;
+    // The OPM's set: chunk 40 with device 4. Its slots are numbered apart from
+    // the others, and only an OPM track names them.
+    VoiceSet opmVoices;
     // The voice files the ADPCM tracks sound, which is what chunk 03 carries.
     std::set<int> adpcmVoiceFiles;
     // The software envelopes the PSG family's tracks name, which is what

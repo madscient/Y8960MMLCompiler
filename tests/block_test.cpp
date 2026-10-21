@@ -73,6 +73,26 @@ void voiceChunks() {
                 "an SCC track compiles");
     test::check(wout.sequence[7 + 3 + 3 + 5] == 0x02, "an SCC waveform is chunk 02");
     test::check(wout.sequence.size() == 7 + 3 + 3 + 5 + 3 + 33, "and keeps its 32 bytes");
+
+    // The OPM's voice is chunk 40: device 4, the slot of the OPM's own set, and
+    // the record as it stands. OPL2EX's @1 takes slot 0 of the other set.
+    Diagnostics odiag;
+    CompileResult oout;
+    test::check(compileText("t.mml", "#assign A OPL2EX 0\n#assign B OPM 3\nA @1C4\nB C4\n", oout, odiag),
+                "OPL2EX and OPM tracks compile");
+    const std::vector<std::uint8_t>& o = oout.sequence;
+    const std::size_t opmAt = 7 + 2 * (3 + 3 + 5) + 3 + 13;  // past both tracks and chunk 01
+    test::checkBytes("the OPM voice chunk",
+                     std::vector<std::uint8_t>(o.begin() + static_cast<std::ptrdiff_t>(opmAt), o.end()),
+                     bytes({0x40, 0x22, 0x00, 0x04, 0x00,
+                            0x07, 0x00, 0x00, 0xF0,
+                            0x7F, 0x1F, 0x00, 0x00, 0x0F, 0x00, 0x01,
+                            0x7F, 0x1F, 0x00, 0x00, 0x0F, 0x00, 0x01,
+                            0x7F, 0x1F, 0x00, 0x00, 0x0F, 0x00, 0x01,
+                            0x00, 0x1F, 0x00, 0x00, 0x07, 0x00, 0x01}));
+    test::check(o.size() > 7 + 3 + 3 + 3 && o[7 + 11 + 3 + 1] == 0x04 && o[7 + 11 + 3 + 3] == 0x85 &&
+                    o[7 + 11 + 3 + 4] == 0x00,
+                "the OPM track is device 4 and names slot 0");
 }
 
 // The ROM packs a record the way VOIPACK does. Its rhythm voices it packed by

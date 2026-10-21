@@ -9,14 +9,23 @@ parser.add_argument("--rom", type=pathlib.Path,
 args = parser.parse_args()
 ROM = args.rom / "src" / "tab"
 
+# The counts a `rept` may name.
+EQU = {}
+for ln in (args.rom / "src" / "inc" / "seqdef.inc").read_text(encoding="ascii").splitlines():
+    m = re.match(r"^([A-Za-z_][A-Za-z0-9_]*)\s+equ\s+([0-9]+)\b", ln, re.I)
+    if m:
+        EQU[m.group(1)] = int(m.group(2))
+
 def parse_db(path, label, comment_names=False):
     """Collect the bytes of every `db` between `label:` and the next label.
 
     A record's name is its quoted run, or with comment_names the comment line
     above it: the rhythm voices are packed, and the packed form has no name.
+    A `rept` block is written out as many times as it says.
     """
     lines = path.read_text(encoding="ascii").splitlines()
     out, names, started = [], [], False
+    rept = None  # (count, where its bytes start in out)
     for ln in lines:
         stripped = ln.strip()
         if not started:
@@ -25,6 +34,16 @@ def parse_db(path, label, comment_names=False):
             continue
         if re.match(r"^[A-Za-z_][A-Za-z0-9_]*:", stripped):
             break
+        r = re.match(r"^rept\s+(\S+)", stripped, re.I)
+        if r:
+            n = r.group(1)
+            rept = (int(n) if n.isdigit() else EQU[n], len(out))
+            continue
+        if re.match(r"^endm\b", stripped, re.I):
+            count, at = rept
+            out.extend(out[at:] * (count - 1))
+            rept = None
+            continue
         if comment_names:
             c = re.match(r"^;\s*(\S.*)$", stripped)
             if c:
@@ -51,13 +70,16 @@ def parse_db(path, label, comment_names=False):
 voices, vnames = parse_db(ROM / "voicedat.asm", "VOICETAB")
 rhythm, rnames = parse_db(ROM / "voicedat.asm", "VOICERTM", comment_names=True)
 waves, _ = parse_db(ROM / "wavedat.asm", "WAVETAB")
+opm, _ = parse_db(ROM / "opmvdat.asm", "OPMVOICETAB")
 
 assert len(voices) == 64 * 32, len(voices)
 assert len(rhythm) == 3 * 12 and len(rnames) == 3, (len(rhythm), rnames)
 assert len(waves) == 16 * 32, len(waves)
+assert len(opm) == 64 * 32, len(opm)
 
 BASIC_ROWS = (8, 8, 8, 8)
 PACKED_ROWS = (2, 5, 5)  # FB/CNT and transpose, then each operator
+OPM_ROWS = (4, 7, 7, 7, 7)  # chunk 40: the voice's own bytes, then M1 C1 M2 C2
 
 def table(name, data, rows, comments):
     stride = sum(rows)
@@ -71,8 +93,8 @@ def table(name, data, rows, comments):
     lines.append("};")
     return "\n".join(lines)
 
-hdr = """// Generated from Y8960BasicExtension src/tab/voicedat.asm and src/tab/wavedat.asm
-// by tools/gen_voicedata.py. Do not edit by hand.
+hdr = """// Generated from Y8960BasicExtension src/tab/voicedat.asm, src/tab/wavedat.asm and
+// src/tab/opmvdat.asm by tools/gen_voicedata.py. Do not edit by hand.
 //
 // The FM voice table is not this project's own work. See the rights section of
 // README.md: the presets come from YAMAHA and ASCII by way of MSX-AUDIO BASIC
@@ -88,7 +110,8 @@ namespace {
 
 body = table("kPresetVoices", voices, BASIC_ROWS, vnames) + "\n\n"
 body += table("kRhythmVoices", rhythm, PACKED_ROWS, rnames) + "\n\n"
-body += table("kPresetWaves", waves, BASIC_ROWS, [str(i) for i in range(16)]) + "\n"
+body += table("kPresetWaves", waves, BASIC_ROWS, [str(i) for i in range(16)]) + "\n\n"
+body += table("kOpmPresetVoices", opm, OPM_ROWS, [""] * 64) + "\n"
 
 tail = """
 } // namespace
@@ -111,11 +134,17 @@ VoiceRecord presetWave(int n) {
     return r;
 }
 
+VoiceRecord presetOpmVoice(int n) {
+    VoiceRecord r{};
+    std::memcpy(r.data(), kOpmPresetVoices + n * kVoiceRecordSize, kVoiceRecordSize);
+    return r;
+}
+
 } // namespace y8
 """
 
 out = pathlib.Path(args.output)
 out.write_text(hdr + body + tail, encoding="ascii", newline="\n")
-print(f"wrote {out} ({len(voices)+len(rhythm)+len(waves)} bytes of data)")
+print(f"wrote {out} ({len(voices)+len(rhythm)+len(waves)+len(opm)} bytes of data)")
 print("voices:", ", ".join(vnames[:4]), "...")
 print("rhythm:", rnames)

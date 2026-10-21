@@ -255,6 +255,12 @@ void compilerOutputComesBack() {
          "#assign B OPLLEX 10\nB bsmch16 (*)2 b!s!m!c!h!4 (ds)2 i1 i255\n"},
         {"rhythm with the instruments' own volumes",
          "#assign C OPL2EX 10\nC @b3 @s5 @m7 @c9 @h11 v10 @s2 b0 y14,32 @w8 h8 m0 r16 c0 @w16 i64\n"},
+        {"the OPM beside OPL2EX",
+         "#voice OPM @140 $BA,$23,$0C,$A0,1,2,3,4,5,6,7,8,9,10,11,12,13,14,15,16,17,18,19,20,21,22,23,24,"
+         "25,26,27,28\n"
+         "#voice OPL @141 1,2,3,4,5,6,7,8,9,10,11,12\n"
+         "#assign A OPM 0\n#assign B OPL2EX 0\n#assign C OPM 7\n"
+         "A @3 c @140 d @70 e i64 y$15,3 @v90 c\nB @141 c @2 d\nC c @140 d\n"},
         {"N with a length of 0", "#define Z 0\n#assign A SSGS 0\nA n40=Z; @w4 r4 l8 n41 n42=Z; @w8 r0\n"},
         {"a track with nothing in it", "#assign C SCC 4\n#assign P SSGS 5\nP c\n"},
         {"meta information",
@@ -266,6 +272,14 @@ void compilerOutputComesBack() {
         Trip t = trip(c.what, sq0);
         test::checkBytes(std::string(c.what) + ": the first block comes back", t.sq1, t.sq0);
     }
+
+    // Each set's records come back in the layout of its own chunk.
+    Trip t = trip("the OPM's voices",
+                  compileOk("the OPM's voices", "#assign A OPM 0\n#assign B OPLLEX 0\nA @5 c\nB @5 c\n"));
+    test::check(t.mml1.find("#voice OPM @128 $07,$00,$00,$F0, \\\n") != std::string::npos &&
+                    t.mml1.find("#voice OPL @129 ") != std::string::npos &&
+                    t.mml1.find("#assign A OPM 0") != std::string::npos,
+                "the OPM's preset is a #voice OPM, OPLLEX's a #voice OPL\n" + t.mml1);
 }
 
 // Lengths a note cannot carry come back as tied notes and rests, and sound the
@@ -349,15 +363,15 @@ void unsayable() {
                 "an unknown chunk below 80 is not read");
 }
 
-// Y8SQ as the ROM's commit e72f191 has it: devices past 3, chunks that belong
+// Y8SQ as the ROM's commit f5c4e55 has it: devices past 4, chunks that belong
 // to a device, 82 on FM counted from 0, and chunk 01 as 12 bytes.
 void formatEdges() {
     DecompileOptions opt;
     opt.name = "edges";
     std::string mml;
 
-    // A track on OPM (device 9) and OPM's voice are left out; the SSGS track
-    // still comes back.
+    // A track on device 9, which names no chip, and a chunk 40 there are left
+    // out, as is OPL3's voice; the SSGS track still comes back.
     std::vector<std::uint8_t> foreign = withChunk(block(0, 0, bytes({0x00, 0x30, 0xFF})), 0x00,
                                                   bytes({0x01, 0x09, 0x00, 0x00, 0x30, 0xFF}));
     std::vector<std::uint8_t> opmVoice(2 + 32, 0);
@@ -366,13 +380,13 @@ void formatEdges() {
     foreign = withChunk(foreign, 0x42, std::vector<std::uint8_t>(2 + 24, 0x08));
     {
         Diagnostics diag;
-        test::check(decompileBlock(foreign, opt, mml, diag), "a block with an OPM track decompiles");
-        test::check(diag.all().size() == 1, "the OPM track is warned about once");
+        test::check(decompileBlock(foreign, opt, mml, diag), "a block with a device 9 track decompiles");
+        test::check(diag.all().size() == 1, "the device 9 track is warned about once");
         test::check(mml.find("#assign A SSGS 0") != std::string::npos &&
                         mml.find("#assign B") == std::string::npos,
                     "only the SSGS track is assigned\n" + mml);
     }
-    // 4-7 name no chip: a track there is left out as one on OPM is.
+    // 5-7 name no chip either.
     {
         Diagnostics diag;
         std::vector<std::uint8_t> unused = withChunk(block(0, 0, bytes({0x00, 0x30, 0xFF})), 0x00,
@@ -387,9 +401,26 @@ void formatEdges() {
         ours[0] = 0x02;
         test::check(!decompileBlock(withChunk(block(0, 0, bytes({0xFF})), 0x40, ours), opt, mml, diag),
                     "a chunk 40 on OPL2EX is not read");
-        ours[0] = 0x07;
+        ours[0] = 0x03;
         test::check(!decompileBlock(withChunk(block(0, 0, bytes({0xFF})), 0x40, ours), opt, mml, diag),
-                    "a chunk 40 on device 7 is not read");
+                    "a chunk 40 on the SCC is not read");
+        // The ROM's reader takes chunk 40 alone of the OPM's.
+        ours[0] = 0x04;
+        test::check(!decompileBlock(withChunk(block(0, 0, bytes({0xFF})), 0x42, ours), opt, mml, diag),
+                    "a chunk 42 on the OPM is not read");
+        test::check(!decompileBlock(withChunk(block(0, 0, bytes({0xFF})), 0x40,
+                                              std::vector<std::uint8_t>(ours.begin(), ours.end() - 1)),
+                                    opt, mml, diag),
+                    "an OPM chunk 40 of 31 bytes is not read");
+        ours[1] = 32;
+        test::check(!decompileBlock(withChunk(block(0, 0, bytes({0xFF})), 0x40, ours), opt, mml, diag),
+                    "an OPM chunk 40 past slot 31 is not read");
+        ours[0] = 0x07;
+        ours[1] = 0;
+        Diagnostics quiet;
+        test::check(decompileBlock(withChunk(block(0, 0, bytes({0xFF})), 0x40, ours), opt, mml, quiet) &&
+                        quiet.all().empty(),
+                    "a chunk 40 on device 7 is passed over without a word");
         test::check(!decompileBlock(withChunk(block(0, 0, bytes({0xFF})), 0x41, {}), opt, mml, diag),
                     "an empty chunk 41 is not read");
         test::check(!decompileBlock(withChunk(block(0, 0, bytes({0xFF})), 0x01,

@@ -19,6 +19,7 @@ const Entry kTable[kDeviceCount] = {
     {"OPLLEX", 8, false, true},
     {"OPL2EX", 8, true, true},
     {"SCC", 4, false, false},
+    {"OPM", 7, false, false},
 };
 
 } // namespace
@@ -26,7 +27,7 @@ const Entry kTable[kDeviceCount] = {
 const char* deviceSymbol(Device d) { return kTable[d].symbol; }
 
 Family deviceFamily(Device d) {
-    return (d == DevOPLLEX || d == DevOPL2EX) ? Family::Fm : Family::Psg;
+    return (d == DevOPLLEX || d == DevOPL2EX || d == DevOPM) ? Family::Fm : Family::Psg;
 }
 
 bool deviceHasChannel(Device d, int channel) {

@@ -14,7 +14,7 @@ namespace y8 {
 
 constexpr int kVoiceRecordSize = 32;
 constexpr int kPackedVoiceSize = 12;   // chunk 01: an FM voice as a block carries it
-constexpr int kPresetVoiceCount = 64;  // @0-@63 on OPLLEX and OPL2EX
+constexpr int kPresetVoiceCount = 64;  // @0-@63 on OPLLEX, OPL2EX and the OPM
 constexpr int kPresetWaveCount = 16;   // @0-@15 on the SCC
 constexpr int kRhythmVoiceCount = 3;   // slots 32-34, OPL2EX's rhythm mode
 
@@ -27,6 +27,8 @@ using PackedVoice = std::array<std::uint8_t, kPackedVoiceSize>;
 VoiceRecord presetVoice(int n);
 PackedVoice rhythmVoice(int n);
 VoiceRecord presetWave(int n);
+// The OPM's own presets, chunk 40 records as they stand.
+VoiceRecord presetOpmVoice(int n);
 
 // The ROM's TAB_VOIPACK: the name, the spare bytes, the velocity byte and
 // MSX-AUDIO's flags are dropped, and the transpose rounds to whole semitones.

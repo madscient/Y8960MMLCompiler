@@ -114,6 +114,7 @@ private:
 
     void voiceNumber(long n);
     void defaultVoice();
+    int slotOf(bool isWave, int n, const VoiceRecord& record);
     void noteEmit(std::uint8_t op, int ticks);
     void timeFlag(int ticks);
 
@@ -351,6 +352,7 @@ void TrackCompiler::voiceNumber(long n) {
     }
 
     if (family_ == Family::Fm) {
+        const bool opm = track_.device == DevOPM;
         if (n > kVoiceUserLast) fail("@n on an FM channel is 0 to 191");
         if (n == kOpllBanked) fail("@64 names no voice: preset 0 of every bank is the user voice");
         if (n >= kVoiceUserFirst) {
@@ -358,31 +360,29 @@ void TrackCompiler::voiceNumber(long n) {
             if (it == src_.userVoices.end()) {
                 fail("@" + std::to_string(n) + " has no #voice to define it");
             }
-            // OPLLEX and OPL2EX both take chunk 01, so an OPL voice plays on either.
+            // OPLLEX and OPL2EX both take chunk 01, so an OPL voice plays on
+            // either. The ROM reads VOICE COPY's bytes the way the track's chip
+            // wants them; a #voice has one layout, and the wrong one is refused.
             const VoiceFormat f = it->second.format;
-            if (f != VoiceFormat::Opl) {
+            const VoiceFormat want = opm ? VoiceFormat::Opm : VoiceFormat::Opl;
+            if (f != want) {
                 fail("@" + std::to_string(n) + " is carried as " + voiceFormatSymbol(f) +
-                     "; this track takes voices carried as OPL");
+                     "; this track takes voices carried as " + voiceFormatSymbol(want));
             }
-            int slot = voices_.intern(false, static_cast<int>(n), it->second.record);
-            if (slot < 0) {
-                fail("this sequence already carries " + std::to_string(kVoiceSlots) + " voices");
-            }
-            emit(OpSeqVoice, static_cast<std::uint8_t>(slot));
+            emit(OpSeqVoice, static_cast<std::uint8_t>(slotOf(false, static_cast<int>(n), it->second.record)));
             voiced_ = true;
             return;
         }
         if (n > kOpllBanked) {
             // OPLLEX's own presets. No record could stand for them, so the chip
-            // gets bank and preset in bits 5-4 and 3-0; OPL2EX has no such bank
-            // and its driver drops the event.
+            // gets bank and preset in bits 5-4 and 3-0; OPL2EX and the OPM have
+            // no such bank and their drivers drop the event.
             emit(OpVoice, static_cast<std::uint8_t>(n - kOpllBanked));
             voiced_ = true;
             return;
         }
-        int slot = voices_.intern(false, static_cast<int>(n), packedPreset(static_cast<int>(n)));
-        if (slot < 0) fail("this sequence already carries " + std::to_string(kVoiceSlots) + " voices");
-        emit(OpSeqVoice, static_cast<std::uint8_t>(slot));
+        const VoiceRecord record = opm ? presetOpmVoice(static_cast<int>(n)) : packedPreset(static_cast<int>(n));
+        emit(OpSeqVoice, static_cast<std::uint8_t>(slotOf(false, static_cast<int>(n), record)));
         voiced_ = true;
         return;
     }
@@ -401,9 +401,7 @@ void TrackCompiler::voiceNumber(long n) {
         } else {
             record = presetWave(static_cast<int>(n));
         }
-        int slot = voices_.intern(true, static_cast<int>(n), record);
-        if (slot < 0) fail("this sequence already carries " + std::to_string(kVoiceSlots) + " voices");
-        emit(OpSeqVoice, static_cast<std::uint8_t>(slot));
+        emit(OpSeqVoice, static_cast<std::uint8_t>(slotOf(true, static_cast<int>(n), record)));
     } else {
         emit(OpVoice, static_cast<std::uint8_t>(n));
     }
@@ -421,14 +419,20 @@ void TrackCompiler::defaultVoice() {
         return;
     }
     if (family_ == Family::Fm) {
-        int slot = voices_.intern(false, 0, packedPreset(0));
-        if (slot < 0) fail("this sequence already carries " + std::to_string(kVoiceSlots) + " voices");
-        emit(OpSeqVoice, static_cast<std::uint8_t>(slot));
+        const VoiceRecord record = track_.device == DevOPM ? presetOpmVoice(0) : packedPreset(0);
+        emit(OpSeqVoice, static_cast<std::uint8_t>(slotOf(false, 0, record)));
     } else if (track_.device == DevSCC) {
-        int slot = voices_.intern(true, 0, presetWave(0));
-        if (slot < 0) fail("this sequence already carries " + std::to_string(kVoiceSlots) + " voices");
-        emit(OpSeqVoice, static_cast<std::uint8_t>(slot));
+        emit(OpSeqVoice, static_cast<std::uint8_t>(slotOf(true, 0, presetWave(0))));
     }
+}
+
+int TrackCompiler::slotOf(bool isWave, int n, const VoiceRecord& record) {
+    int slot = voices_.intern(isWave, n, record);
+    if (slot < 0) {
+        fail("this sequence already carries " + std::to_string(kVoiceSlots) +
+             (track_.device == DevOPM ? " OPM voices" : " voices"));
+    }
+    return slot;
 }
 
 // ---------------------------------------------------------------------------
@@ -1175,6 +1179,11 @@ bool regWritable(Device dev, long reg, std::string& why) {
             if (reg != 0x04) return true;
             why = "OPL2EX register $04 cannot be written: it masks the interrupts";
             return false;
+        case DevOPM:
+            // 14H opens the timer interrupts, which nothing on the machine takes.
+            if (reg != 0x14) return true;
+            why = "OPM register $14 cannot be written: it opens the timer interrupts";
+            return false;
         default:
             return true;
     }
@@ -1208,7 +1217,7 @@ bool compileSequence(const SourceFile& src, Sequence& out, Diagnostics& diag) {
             out.voices.needRhythmVoices();
         }
 
-        TrackCompiler compiler(src, i, out.voices, diag);
+        TrackCompiler compiler(src, i, t.device == DevOPM ? out.opmVoices : out.voices, diag);
         if (!compiler.run(code, out)) {
             ok = false;
             code.bytes.assign(1, OpEnd);

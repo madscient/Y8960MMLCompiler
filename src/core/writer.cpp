@@ -22,6 +22,7 @@ constexpr std::uint8_t kChunkVoice = 0x01;
 constexpr std::uint8_t kChunkWave = 0x02;
 constexpr std::uint8_t kChunkVoiceFile = 0x03;
 constexpr std::uint8_t kChunkEnvelope = 0x04;
+constexpr std::uint8_t kChunkOpmVoice = 0x40;
 constexpr std::uint8_t kChunkMeta = 0x80;
 constexpr int kRhythmSlotFirst = 32;  // slots 32-34, outside the set events name
 
@@ -87,6 +88,16 @@ std::vector<std::uint8_t> writeBlock(const Sequence& seq, const AdpcmData& adpcm
         body.push_back(static_cast<std::uint8_t>(env.first));
         body.insert(body.end(), env.second.begin(), env.second.end());
         putChunk(out, kChunkEnvelope, body);
+    }
+
+    // Chunk 40 leads with the device it belongs to.
+    const std::vector<VoiceSet::Slot>& opm = seq.opmVoices.slots();
+    for (std::size_t i = 0; i < opm.size(); ++i) {
+        std::vector<std::uint8_t> body;
+        body.push_back(static_cast<std::uint8_t>(DevOPM));
+        body.push_back(static_cast<std::uint8_t>(i));
+        body.insert(body.end(), opm[i].record.begin(), opm[i].record.end());
+        putChunk(out, kChunkOpmVoice, body);
     }
 
     // Chunk 80 only when the source gives it something, the items in number order.

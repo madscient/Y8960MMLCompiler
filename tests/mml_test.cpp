@@ -141,6 +141,85 @@ void voices() {
     test::check(refused("OPL2EX 0", "@64C4"), "@64 names no voice");
 }
 
+// The OPM's voices go to a set of its own, which only its tracks name.
+void opmVoices() {
+    auto compile = [](const std::string& text, Sequence& seq) {
+        Diagnostics diag;
+        SourceFile src;
+        if (!readSourceText("test.mml", text, src, diag)) return false;
+        return compileSequence(src, seq, diag);
+    };
+    // ROM: opmvdat.asm's sine, the voice every preset number holds.
+    const VoiceRecord sine = {0x07, 0x00, 0x00, 0xF0,
+                              0x7F, 0x1F, 0x00, 0x00, 0x0F, 0x00, 0x01,
+                              0x7F, 0x1F, 0x00, 0x00, 0x0F, 0x00, 0x01,
+                              0x7F, 0x1F, 0x00, 0x00, 0x0F, 0x00, 0x01,
+                              0x00, 0x1F, 0x00, 0x00, 0x07, 0x00, 0x01};
+    {
+        Sequence seq;
+        test::check(compile("#assign A OPM 0\nA C4\n", seq), "an OPM track compiles");
+        test::checkBytes("OPM default voice", seq.tracks[0].bytes, bytes({0x85, 0x00, 0x00, 0x30, 0xFF}));
+        test::check(seq.opmVoices.slots().size() == 1 && seq.opmVoices.slots()[0].record == sine &&
+                        seq.voices.slots().empty(),
+                    "the default voice is the OPM's preset 0, in the OPM's set");
+    }
+    {
+        // Slot 0 of each set: the two do not share their numbers.
+        Sequence seq;
+        test::check(compile("#assign A OPL2EX 0\n#assign B OPM 7\nA @1C4\nB @5C4@63C4\n", seq),
+                    "OPL2EX and OPM tracks compile together");
+        test::checkBytes("OPM @5 then @63", seq.tracks[1].bytes,
+                         bytes({0x85, 0x00, 0x00, 0x30, 0x85, 0x01, 0x00, 0x30, 0xFF}));
+        test::check(seq.voices.slots().size() == 1 && seq.opmVoices.slots().size() == 2 &&
+                        seq.opmVoices.slots()[1].record == sine,
+                    "OPL2EX's preset in its set, the OPM's two in the OPM's");
+    }
+    {
+        Sequence seq;
+        test::check(compile("#voice OPM @130 $BA,$23,$0C,$A0, \\\n"
+                            "  $10,$5F,$85,$43,$21,0,$31, $11,$9E,$86,$84,$32,0,$42, \\\n"
+                            "  $12,$DD,$87,$C5,$43,0,$53, $13,$1C,$88,$06,$54,0,$64\n"
+                            "#assign A OPM 2\nA @130C4\n",
+                            seq),
+                    "an OPM track takes a #voice OPM");
+        // ROM: opmser.tcl's record, which the block carries as it stands.
+        const VoiceRecord rec = {0xBA, 0x23, 0x0C, 0xA0,
+                                 0x10, 0x5F, 0x85, 0x43, 0x21, 0x00, 0x31,
+                                 0x11, 0x9E, 0x86, 0x84, 0x32, 0x00, 0x42,
+                                 0x12, 0xDD, 0x87, 0xC5, 0x43, 0x00, 0x53,
+                                 0x13, 0x1C, 0x88, 0x06, 0x54, 0x00, 0x64};
+        test::check(seq.opmVoices.slots().size() == 1 && seq.opmVoices.slots()[0].record == rec,
+                    "the #voice OPM record goes into the OPM's set unchanged");
+    }
+    std::string sfg = "#voice SFG @129 0";
+    for (int i = 1; i < 40; ++i) sfg += ",0";
+    test::check(!refused("OPM 0", "@65C4") &&
+                    track("OPM 0", "@65C4") == bytes({0x82, 0x01, 0x00, 0x30, 0xFF}),
+                "OPM @65 is written as 82 01, as OPL2EX's is");
+    test::check(refused("OPM 0", "@64C4"), "OPM @64 names no voice");
+    test::check(refused("OPM 0", "@192C4"), "OPM @192 is past the last voice");
+    test::check(!track("OPM 0", "@129C4", sfg + "\n").empty(), "an OPM track takes a #voice SFG");
+    test::check(track("OPM 0", "@129C4", "#voice OPL @129 0,0,0,0,0,0,0,0,0,0,0,0\n").empty(),
+                "an OPM track refuses a #voice OPL");
+    test::check(track("OPL2EX 0", "@129C4", sfg + "\n").empty(), "an OPL2EX track refuses a #voice SFG");
+
+    // 32 numbers fill the OPM's set, and the other set is not counted.
+    std::string fill;
+    for (int n = 0; n < 32; ++n) fill += "@" + std::to_string(n) + "C4";
+    test::check(!refused("OPM 0", fill), "32 OPM voices fit");
+    test::check(refused("OPM 0", fill + "@32C4"), "a 33rd OPM voice is refused");
+    {
+        Sequence seq;
+        test::check(compile("#assign A OPL2EX 0\n#assign B OPM 0\nA " + fill + "\nB " + fill + "\n", seq),
+                    "32 voices in each set fit");
+    }
+
+    // The rest is the FM family's.
+    test::checkBytes("OPM @V", track("OPM 0", "@V100"), bytes({0x81, 0x64, 0xFF}));
+    test::checkBytes("OPM I", track("OPM 0", "I200"), bytes({0x87, 0xC8, 0xFF}));
+    test::checkBytes("OPM @E and @G", track("OPM 0", "@E0@G1"), bytes({0xFF}));
+}
+
 void registerRanges() {
     // Each device takes its own chip's register numbers.
     struct Case {
@@ -170,6 +249,9 @@ void registerRanges() {
         {"OPL2EX 0", "Y$03,0", true},   {"OPL2EX 0", "Y$04,0", false},
         {"OPL2EX 0", "Y$05,0", true},   {"OPL2EX 0", "Y$FF,0", true},
         {"OPL2EX 0", "Y$F6,$80", true},  {"SCC 0", "Y$FF,$FF", true},
+        {"OPM 0", "Y$00,0", true},       {"OPM 0", "Y$13,0", true},
+        {"OPM 0", "Y$14,0", false},      {"OPM 0", "Y$15,0", true},
+        {"OPM 0", "Y$FF,0", true},
         // A rhythm or ADPCM track writes the registers of the block it is on.
         {"OPLLEX 10", "Y$0E,$20", true}, {"OPL2EX 9", "Y$04,0", false},
     };
@@ -662,12 +744,14 @@ void sourceLines() {
     readSourceText("t.mml", "#assign A SSGS 0\n#assign B SSGS 0\n", src5, twice);
     test::check(twice.hasErrors(), "two tracks cannot hold one channel");
 
-    // The devices are 0 SSGS, 1 OPLLEX, 2 OPL2EX and 3 SCC, by name or number.
-    // @G0 is written on the SCC alone.
+    // The devices are 0 SSGS, 1 OPLLEX, 2 OPL2EX, 3 SCC and 4 OPM, by name or
+    // number. @G0 is written on the SCC alone, and Y$14 refused on the OPM alone.
     test::checkBytes("device 3 is the SCC", track("3 4", "@G0"), bytes({0xB3, 0x00, 0xFF}));
     test::checkBytes("device 2 is OPL2EX", track("2 9", "@1C4"),
                      bytes({0x82, 0x01, 0x00, 0x30, 0xFF}));
-    for (const char* gone : {"4 0", "7 0", "OPLLEX1 0", "OPL2EX2 0", "DCSG1 0"}) {
+    test::check(refused("4 7", "Y$14,0") && !refused("2 0", "Y$14,0"), "device 4 is the OPM");
+    test::check(refused("OPM 8", "C4"), "the OPM has channels 0-7");
+    for (const char* gone : {"5 0", "7 0", "9 0", "OPLLEX1 0", "OPL2EX2 0", "DCSG1 0"}) {
         test::check(refused(gone, "C4"), std::string(gone) + " is not a device");
     }
 }
@@ -696,7 +780,7 @@ void outputNames() {
 
 } // namespace
 
-// #mixer: five levels in CALL MIXER's order, or NAME:level for some of them.
+// #mixer: six levels in CALL MIXER's order, or NAME:level for some of them.
 // Nothing reaches the block yet, and a warning says so.
 void mixerCommand() {
     struct Read {
@@ -714,23 +798,23 @@ void mixerCommand() {
         return v;
     };
     {
-        Read r = read("#mixer 128, 0,100 ,$40,7\n");
-        test::check(r.ok, "five levels in order read");
-        test::check(levels(r.src) == std::vector<int>({128, 0, 100, 64, 7}),
-                    "master, SSGS, OPLLEX, OPL2EX, SCC in that order");
+        Read r = read("#mixer 128, 0,100 ,$40,7, 32\n");
+        test::check(r.ok, "six levels in order read");
+        test::check(levels(r.src) == std::vector<int>({128, 0, 100, 64, 7, 32}),
+                    "master, SSGS, OPLLEX, OPL2EX, SCC, OPM in that order");
         test::check(r.src.mixer.line == 1, "the line is kept");
         test::check(r.diag.all().size() == 1 && r.diag.all()[0].severity == Severity::Warning,
                     "a warning says #mixer is not written");
     }
     {
-        Read r = read("#mixer scc:64, Master : 100,OPL2EX:0\n");
+        Read r = read("#mixer scc:64, Master : 100,OPL2EX:0,opm:1\n");
         test::check(r.ok, "NAME:level reads");
-        test::check(levels(r.src) == std::vector<int>({100, -1, -1, 0, 64}),
+        test::check(levels(r.src) == std::vector<int>({100, -1, -1, 0, 64, 1}),
                     "the levels named are set and the rest are not");
     }
     {
         Read r = read("#assign A SSGS 0\nA C4\n");
-        test::check(r.src.mixer.line == 0 && levels(r.src) == std::vector<int>(5, -1),
+        test::check(r.src.mixer.line == 0 && levels(r.src) == std::vector<int>(6, -1),
                     "no #mixer sets nothing");
         test::check(r.diag.all().empty(), "and warns of nothing");
     }
@@ -749,19 +833,19 @@ void mixerCommand() {
         const char* why;
     } bad[] = {
         {"#mixer", "no levels"},
-        {"#mixer 128,128,128,128", "four levels in order"},
-        {"#mixer 128,128,128,128,128,128", "six levels in order"},
-        {"#mixer 128,128,,128,128", "an empty level"},
-        {"#mixer 128,128,128,128,128,", "a comma at the end"},
-        {"#mixer 129,128,128,128,128", "a level past 128"},
-        {"#mixer -1,128,128,128,128", "a level below 0"},
+        {"#mixer 128,128,128,128,128", "five levels in order"},
+        {"#mixer 128,128,128,128,128,128,128", "seven levels in order"},
+        {"#mixer 128,128,,128,128,128", "an empty level"},
+        {"#mixer 128,128,128,128,128,128,", "a comma at the end"},
+        {"#mixer 129,128,128,128,128,128", "a level past 128"},
+        {"#mixer -1,128,128,128,128,128", "a level below 0"},
         {"#mixer SSGS:129", "a named level past 128"},
         {"#mixer SSGS:", "a name with no level"},
         {"#mixer DCSG1:10", "a name that is not a device"},
         {"#mixer 0:10", "a device number for a name"},
         {"#mixer SSGS:10,ssgs:20", "a name twice"},
         {"#mixer SSGS:10,128", "a bare level among names"},
-        {"#mixer 128,SSGS:10,128,128,128", "a name among levels in order"},
+        {"#mixer 128,SSGS:10,128,128,128,128", "a name among levels in order"},
         {"#mixer SCC:1\n#mixer SCC:2", "#mixer twice"},
     };
     for (const auto& b : bad) {
@@ -815,6 +899,7 @@ int main() {
     notesAndLengths();
     volumes();
     voices();
+    opmVoices();
     registerRanges();
     loops();
     marks();

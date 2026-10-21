@@ -15,7 +15,7 @@ public:
     struct Slot {
         bool isWave = false;  // chunk 02 rather than chunk 01
         int number = 0;       // the @n it came from, for the dedup
-        VoiceRecord record{};  // a voice packed in the first kPackedVoiceSize bytes
+        VoiceRecord record{};  // a voice packed in the first bytes, as its chunk carries it
     };
 
     // Returns the slot, or -1 when all kVoiceSlots are taken.

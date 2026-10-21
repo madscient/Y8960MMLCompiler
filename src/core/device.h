@@ -11,12 +11,12 @@ enum Device : std::uint8_t {
     DevOPLLEX = 1,
     DevOPL2EX = 2,
     DevSCC = 3,
-    kDeviceCount = 4,
+    DevOPM = 4,
+    kDeviceCount = 5,
 };
 
-// 4-7 name no chip and 8 up chips no Y8960 has. Y8SQ still numbers them, so a
-// block may carry them; this MML writes none of them.
-constexpr int kFormatDeviceForeign = 8;
+// 5-7 and 9 name no chip, and 8, 10 and 11 chips no Y8960 has. Y8SQ still
+// numbers them, so a block may carry them; this MML writes none of them.
 
 // Which of the two event tables a track is written in. It follows from the
 // device alone, which is why a track's device has to be known before its MML
