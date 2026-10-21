@@ -373,6 +373,10 @@ y8mmlc <MML ソース> [-o <基底名>] [--out-dir <フォルダ>]
     公開の API か利用者に確かめてから書く
 - **SCC のプリセット波形**（`src/tab/wavedat.asm`）は Y8960BasicExtension が
   生成したもので、出典の制約は無い
+- **OPM のプリセット音色**（`src/tab/opmvdat.asm`）は Y8960BasicExtension の表で、いまは
+  64 本とも正弦波1つの同じ音色（ファイルの冒頭コメントによれば、OPM BASIC Extension が
+  音色を選んでいないチャンネルに使うものと同じ）。`README.md` の「権利」節には写した元だけを
+  書いた（2026-10-22）。ROM が本物の音色に差し替えたら、その出典をここと README で読み直す
 - **OPL2EX のリズム音色3本**（索引 32-34）は出典が別で、CC BY-SA。
   **再配布時に出典明記が条件**なので、`README.md` の「権利」節に書く
 - **写しは手で打たない。** `tools/gen_voicedata.py` が ROM の `voicedat.asm` と
