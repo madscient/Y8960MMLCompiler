@@ -1640,6 +1640,18 @@ Y8PC の設定 36 件・Y8SQ のチャンク 03 が 36 件になり、Y8960Seque
 - 2026-11-01: ROM の `65125ef` に追従し、MML の16進リテラルを1〜4桁にした（決定事項の「MML の16進
   リテラルは1〜4桁」）。破壊的変更。**確認済み** ―― `ctest` の6本が通る（MSVC、Release、警告 0）。
   Linux ではビルドしていない。版は上げていない
+- 2026-11-01: **v0.3.0 を GitHub Releases に出した**（`3787814` にタグ）。版の番号は v0.2.0 と同じ決め方
+  （ソースの互換が切れたら上げる）で、16進リテラルの変更がそれに当たる。作り方は v0.2.0 と同じで、
+  `git archive` で書き出した木を `out/rel-v0.3.0/` に置き、配布物は Python の zipfile・tarfile で詰めた
+  （tar は root/root、実行ファイル 755・ほか 644。中身の11本は v0.2.0 と同じ）。確認済み ―― Windows
+  （MSVC 19.51、Release、依存は KERNEL32.dll だけ）と Linux（WSL の Debian 11、GCC 10.2.1、glibc 2.14 以降）の
+  両方で警告 0、試験6本が通った。展開した配布物で `MANIFEST.txt` のハッシュが全部合い、デモ曲と
+  v0.2.0 の確認用の曲（`ad.mml`・`full.mml`）の `.SQ`・`.PC` と `y8mmld` の出力が、両版のあいだでも
+  v0.2.0 の出力ともバイト単位で一致した。`y8mmld` → `y8mmlc` の往復でも戻った。リリースノートの
+  新旧の表（5行）は v0.2.0 と v0.3.0 の `y8mmlc.exe` で走らせて確かめた。公開後に落とし直した
+  配布物は手元と同一で、Source code の zip・tar.gz に `doc/plan.md` は無い。
+  踏んだもの: Debian 11 の CMake 3.18 は `ctest --test-dir` を知らず、「No tests were found」で
+  何も走らせずに終わる。build の中で `ctest` を回す
 - 2026-10-01: `#voice` を `#voice <形式> @<番号>` に一本化し、形式に `AUDIO`（今までの
   32 バイト）・`SFG`・`MAKOTO` を足した（利用者の決定）。どれも読んだときに詰める。
   **確認済み** ―― `ctest` の6本が通る（MSVC、Release、警告 0）
