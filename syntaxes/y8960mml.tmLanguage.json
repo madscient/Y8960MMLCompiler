@@ -109,7 +109,7 @@
           "match": "\\|\\s*:|:\\s*\\||\\[|\\]|\\(\\s*(?:\\*|(?i:d\\s*c|d\\s*s|t\\s*c|c\\s*o\\s*d\\s*a|f\\s*i\\s*n\\s*e))\\s*\\)",
           "name": "keyword.control.flow.y8960mml"
         },
-        { "match": "\\$[0-9A-Fa-f]{2}", "name": "constant.numeric.hex.y8960mml" },
+        { "match": "\\$[0-9A-Fa-f]{1,4};?", "name": "constant.numeric.hex.y8960mml" },
         { "match": "\\d+", "name": "constant.numeric.decimal.y8960mml" },
         { "match": "(?i)[a-g][+#-]?", "name": "keyword.other.note.y8960mml" },
         { "match": "(?i)r", "name": "keyword.other.rest.y8960mml" },

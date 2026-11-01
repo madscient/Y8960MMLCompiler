@@ -82,9 +82,6 @@ void notesAndLengths() {
     test::checkBytes("> up to O9", track("SSGS 0", ">>>>>>"),
                      bytes({0x40, 0x40, 0x40, 0x40, 0x40, 0xFF}));
     test::check(refused("SSGS 0", "O10C"), "O10 is refused");
-    // $ takes two digits so the note after it stays a note.
-    test::checkBytes("Y$20,$0FCDE", track("SSGS 0", "L4Y$20,$0FCDE"),
-                     bytes({0xE0, 0x20, 0x0F, 0x00, 0x00, 0x30, 0x02, 0x30, 0x04, 0x30, 0xFF}));
     // Space falls anywhere, including inside a number.
     test::checkBytes("spaces", track("SSGS 0", "L 1 6 C"), bytes({0x00, 0x0C, 0xFF}));
 
@@ -106,7 +103,47 @@ void notesAndLengths() {
     test::check(!refused("SSGS 0", "{CDE}32"), "and 32 is the last one that fits");
     test::check(refused("SSGS 0", "L97C"), "a length over 96 is refused");
     test::check(refused("SSGS 0", "{C{D}}4"), "tuplets do not nest");
-    test::check(refused("SSGS 0", "O$4"), "a single hex digit is refused");
+}
+
+// The cases are the ROM's tools/emu/tcl/hexnum.tcl (Y8960BasicExtension
+// 65125ef). Each hex MML must give the bytes of the same MML written in
+// decimal, which goes through none of the hex code.
+void hexNumbers() {
+    static const char* const same[][2] = {
+        {"Y8,$F;CDE", "Y8,15CDE"},
+        {"Y8,$0F;CDE", "Y8,15CDE"},
+        {"Y8,$000FCDE", "Y8,15CDE"},
+        {"Y8,$000F;CDE", "Y8,15CDE"},
+        {"Y$8,$a,$f0R", "Y8,10,240R"},
+        {"Y8,$1", "Y8,1"},
+        {"L$10;C", "L16C"},
+        {"@V$7F;C", "@V127C"},
+        {"M$1234;C", "M4660C"},
+        {"M$1234C", "M4660C"},
+        {"M$12CDE", "M4813E"},
+        {"P-$A;C", "P-10C"},
+        {"|:[$1;C]:|$2;D", "|:[1C]:|2D"},
+        {"{CV$F;D}1", "{CV15D}1"},
+        {"{CV$FO4D}1", "{CV15O4D}1"},
+        {"{CV$000FD}1", "{CV15D}1"},
+        {"M$FFFF;C", "M65535C"},
+    };
+    for (const auto& s : same) {
+        const std::vector<std::uint8_t> want = track("SSGS 0", s[1]);
+        test::check(!want.empty(), std::string("the decimal form compiles: ") + s[1]);
+        test::checkBytes(s[0], track("SSGS 0", s[0]), want);
+    }
+
+    static const char* const refusedHex[] = {
+        "Y8,$;C",   // no digit, closed by ';'
+        "Y8,$,1",   // no digit, closed by ','
+        "Y8,$",     // no digit, at the end of the track
+        "Y8,$1AC4", // a note run into the number: 1AC4h
+        "Y8,$0FCDE", // 0FCDh
+        "L$10C",    // 10Ch
+        "O$4 C",    // a space is not a separator: O$4C
+    };
+    for (const char* mml : refusedHex) test::check(refused("SSGS 0", mml), mml);
 }
 
 void voices() {
@@ -914,6 +951,7 @@ void metaCommands() {
 
 int main() {
     notesAndLengths();
+    hexNumbers();
     volumes();
     voices();
     opmVoices();

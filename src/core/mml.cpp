@@ -57,6 +57,7 @@ private:
 
     // ---- numbers and lengths ---------------------------------------------
     bool getNum(long& out);          // false when no number is there
+    bool hexDigits(long& out);
     long needNum();                  // errors out when no number is there
     long getSigned();
     long optNum(long def);           // a number if one is there, else `def`
@@ -223,25 +224,8 @@ bool TrackCompiler::getNum(long& out) {
     if (!peek(c)) return false;
 
     if (c == '$') {
-        // Always two digits: a-f is a note letter as well as a hex digit, so a
-        // number that ran to the first non-digit would swallow the note after it.
         skip();
-        long v = 0;
-        for (int i = 0; i < 2; ++i) {
-            char d;
-            if (!peek(d)) fail("$ takes two hexadecimal digits");
-            int digit;
-            if (d >= '0' && d <= '9') {
-                digit = d - '0';
-            } else if (d >= 'a' && d <= 'f') {
-                digit = d - 'a' + 10;
-            } else {
-                fail("$ takes two hexadecimal digits");
-            }
-            v = v * 16 + digit;
-            skip();
-        }
-        out = v;
+        if (!hexDigits(out)) fail("$ takes one to four hexadecimal digits");
         return true;
     }
 
@@ -269,6 +253,29 @@ bool TrackCompiler::getNum(long& out) {
         if (v > 65535) fail("a number here is at most 65535");
         skip();
     }
+    out = v;
+    return true;
+}
+
+// The digits after a '$'. The number ends at the first character that is not
+// one, or after the fourth whatever follows: a-f are note letters as well, so a
+// note straight after a shorter number has to be kept out of it with a ';', and
+// the ';' that ends a number goes with it. False, with nothing read, when there
+// is no digit.
+//
+// The tuplet look-ahead steps over numbers through this too, so that it and
+// the compile end a number at the same character.
+bool TrackCompiler::hexDigits(long& out) {
+    long v = 0;
+    int n = 0;
+    char d;
+    while (n < 4 && peek(d) && ((d >= '0' && d <= '9') || (d >= 'a' && d <= 'f'))) {
+        v = v * 16 + (d <= '9' ? d - '0' : d - 'a' + 10);
+        ++n;
+        skip();
+    }
+    if (n == 0) return false;
+    if (peek(d) && d == ';') skip();
     out = v;
     return true;
 }
@@ -707,10 +714,10 @@ int TrackCompiler::tupletCount() {
         }
         if (c == '{') break;  // tuplets do not nest
         if (c == '$') {
-            // a-f is a hex digit here, not a note
-            char d;
-            if (!next(d)) break;
-            if (!next(d)) break;
+            // a-f is a hex digit here, not a note. A '$' with no digit is the
+            // compile's to refuse, not this.
+            long v;
+            hexDigits(v);
             continue;
         }
         if (c == 'n' || c == 'r' || (c >= 'a' && c <= 'g')) ++count;
@@ -730,13 +737,7 @@ void TrackCompiler::cmdTupletStart() {
     std::vector<const std::string*> savedMacros = macroStack_;
     // Walk to the '}' again to read the length written after it.
     char c;
-    while (next(c) && c != '}') {
-        if (c == '$') {
-            char d;
-            if (!next(d)) break;
-            if (!next(d)) break;
-        }
-    }
+    while (next(c) && c != '}') {}
     int share = getLen() / notes;
     views_ = saved;
     macroStack_ = savedMacros;
